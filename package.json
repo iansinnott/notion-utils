@@ -1,0 +1,16 @@
+{
+  "name": "notion-utils",
+  "version": "1.0.0",
+  "description": "Utils for working with Notion",
+  "main": "src/backup.ts",
+  "repository": "git@github.com:iansinnott/notion-utils.git",
+  "author": "Ian Sinnott <ian@iansinnott.com>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "@notionhq/client": "^0.2.4"
+  }
+}
