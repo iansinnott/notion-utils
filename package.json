@@ -12,5 +12,8 @@
   },
   "dependencies": {
     "@notionhq/client": "^0.2.4"
+  },
+  "devDependencies": {
+    "typescript": "^4.3.5"
   }
 }
