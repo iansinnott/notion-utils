@@ -10,6 +10,7 @@ import { Database, Page, PropertyValue, RichText } from "@notionhq/client/build/
 import { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import { Highlight } from "react-instantsearch-dom";
 import reactStringReplace from "react-string-replace";
+import { Switch } from "@headlessui/react";
 
 const log = (...args) => {
   if (process.env.NODE_ENV === "development") {
@@ -141,7 +142,7 @@ function AuthBox(props: AuthBoxProps) {
     <form className="w-full" onSubmit={handleSubmit}>
       <input
         className={cx(
-          "w-full border-2 border-black rounded-lg py-2 px-4 focus:border-pink-600 outline-none mb-4",
+          "w-full border-2 border-black rounded-lg py-2 px-4 focus:border-indigo-600 outline-none mb-4",
           { "border-red-600": props.error },
         )}
         type="text"
@@ -152,7 +153,7 @@ function AuthBox(props: AuthBoxProps) {
 
       <button
         type="submit"
-        className={cx("mb-4 py-2 px-4 bg-black text-white hover:bg-pink-600 rounded-lg", {
+        className={cx("mb-4 py-2 px-4 bg-black text-white hover:bg-indigo-600 rounded-lg", {
           "pointer-events-none opacity-75": props.disabled,
         })}>
         Save
@@ -189,6 +190,20 @@ const formatDate = (date: Date) => {
     year: "numeric",
   });
 };
+
+const IconRefresh = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor">
+    <path
+      fillRule="evenodd"
+      d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
 
 const IconDocument = () => (
   <svg
@@ -279,12 +294,7 @@ class SearchPane extends React.Component<{
     const { getClient, state } = this.props;
     return (
       <div className="SearchPane">
-        <Autocomplete
-          autoFocus
-          openOnFocus
-          // @ts-ignore
-          getSources={this.props.getSources}
-        />
+        <Autocomplete openOnFocus getSources={this.props.getSources} />
       </div>
     );
   }
@@ -293,14 +303,26 @@ class SearchPane extends React.Component<{
 // A component that will display all the keys and values of the state prop
 const DebugInfo = ({ state, status }: { state: AppState; status: string }) => {
   return (
-    <div className="border-2 border-gray-400 bg-gray-200 rounded-lg px-2 py-2 font-mono mt-8 max-w-lg mx-auto overflow-auto w-full">
-      <h2 className="uppercase text-xs text-gray-700">Status</h2>
-      <pre>{status}</pre>
+    <div className="border-2 border-gray-400 bg-gray-200 rounded-lg px-2 py-2 font-mono mt-8 max-w-lg mx-auto overflow-auto w-full flex flex-col space-y-2">
+      <div>
+        <h2 className="uppercase text-xs text-gray-700">Status</h2>
+        <pre>{status}</pre>
+      </div>
+      <div>
+        <h2 className="uppercase text-xs text-gray-700">Document Count</h2>
+        <pre>{state.results.length}</pre>
+      </div>
+      <div>
+        <h2 className="uppercase text-xs text-gray-700">Last Checked</h2>
+        <pre>{state.lastChecked ? formatDate(new Date(state.lastChecked)) : "--"}</pre>
+      </div>
     </div>
   );
 };
 
 interface AppState {
+  openDesktopApp: boolean;
+  lastChecked?: number;
   results: Array<(Page | Database) & { plain_text_title: string }>;
   auth?: {
     username?: string;
@@ -355,9 +377,10 @@ const fetchAll = (client: Client, cursor = undefined): Promise<SearchResponse["r
 };
 
 export default function Home() {
+  const initialState = { results: [], auth: null, openDesktopApp: false };
   const storage = useRef(new StorageProvider());
   const [status, setStatus] = useState("hydrating");
-  const [state, setState] = useState<AppState>({ results: [], auth: null });
+  const [state, setState] = useState<AppState>(initialState);
   const [err, setErr] = useState(null);
   const client = useRef<null | Client>(null);
 
@@ -384,13 +407,15 @@ export default function Home() {
   };
 
   const refresh = () => {
+    setStatus("loading");
     return fetchAll(client.current)
       .then((xs) =>
         xs.map((x) => {
           return { ...x, plain_text_title: formatObject(x) };
         }),
       )
-      .then((results) => mergeState({ results }));
+      .then((results) => mergeState({ results, lastChecked: Date.now() }))
+      .finally(() => setStatus("idle"));
   };
 
   useEffect(() => {
@@ -441,8 +466,8 @@ export default function Home() {
   };
 
   const deauthorize = () => {
-    storage.current.clear();
-    mergeState({ auth: { token: "" } });
+    storage.current.setItem("appState", "");
+    setState(initialState);
   };
 
   const loading = status === "loading";
@@ -472,6 +497,34 @@ export default function Home() {
 
         {state.auth?.token && (
           <div className={"autocomplete w-full"}>
+            <div>
+              <Switch.Group as="div" className="flex items-center justify-between mb-4">
+                <span className="flex-grow flex flex-col">
+                  <Switch.Label
+                    as="span"
+                    className="text-sm font-medium text-gray-900 mr-8"
+                    passive>
+                    Open links in desktop app
+                  </Switch.Label>
+                </span>
+                <Switch
+                  checked={state.openDesktopApp}
+                  onChange={(open) => mergeState({ openDesktopApp: open })}
+                  className={cx(
+                    state.openDesktopApp ? "bg-indigo-600" : "bg-gray-200",
+                    "relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600",
+                  )}>
+                  <span
+                    aria-hidden="true"
+                    className={cx(
+                      state.openDesktopApp ? "translate-x-5" : "translate-x-0",
+                      "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200",
+                    )}
+                  />
+                </Switch>
+              </Switch.Group>
+            </div>
+
             <SearchPane
               getSources={({ query }) => [
                 {
@@ -489,6 +542,18 @@ export default function Home() {
                   getItemUrl({ item }) {
                     return item.url;
                   },
+                  onSelect({ item, event }) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    if (state.openDesktopApp) {
+                      const url = `notion:/` + item.id.replace(/-/g, "");
+                      log("[open] Opening desktop URL", url);
+                      window.open(url);
+                    } else {
+                      window.open(item.url);
+                    }
+                  },
                   templates: {
                     item({ item, components }) {
                       return <SearchResultItem hit={item} components={components} query={query} />;
@@ -501,11 +566,22 @@ export default function Home() {
               onReauth={deauthorize}
             />
             <DebugInfo state={state} status={status} />
-            <div className="flex justify-end w-full mt-4">
+            <div className="flex justify-between w-full mt-4">
+              <button
+                className={cx(
+                  "px-2 py-1 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-black",
+                  { "pointer-events-none opacity-60": status !== "idle" },
+                )}
+                onClick={refresh}>
+                <span className={cx("mr-2", { "animate-spin": loading })}>
+                  <IconRefresh />
+                </span>
+                Refresh
+              </button>
               <button
                 className="px-2 py-1 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-800 hover:bg-red-100"
                 onClick={deauthorize}>
-                <small>Deauthorize</small>
+                <small>Re-authorize</small>
               </button>
             </div>
           </div>

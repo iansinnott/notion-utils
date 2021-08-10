@@ -46,4 +46,13 @@
       width: 3ch;
     }
   }
+
+  .aa-Autocomplete .aa-Form {
+    @apply rounded-lg border-2 border-black focus:border-indigo-600;
+  }
+
+  /* .aa-Label svg,
+  .aa-LoadingIndicator svg {
+    --aa-primary-color-rgb: 219, 39, 119;
+  } */
 }
