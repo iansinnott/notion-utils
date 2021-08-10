@@ -3,8 +3,14 @@ import Image from "next/image";
 import React, { createElement, FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import { autocomplete } from "@algolia/autocomplete-js";
 import { render } from "react-dom";
+import { Client } from "@notionhq/client";
+import cx from "classnames";
 
-export function Autocomplete(props) {
+const TextSpinner = ({ className = "" }) => {
+  return <div className={cx("text-spinner w-8", className)}></div>;
+};
+
+function Autocomplete(props) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -46,6 +52,10 @@ class StorageProvider {
           };
   }
 
+  async clear() {
+    return this.backend.clear();
+  }
+
   async getItem<T>(key: string): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       try {
@@ -62,20 +72,30 @@ class StorageProvider {
   }
 }
 
+// Auth box props with onSaveToken handler
+interface AuthBoxProps {
+  onSaveToken: (token: string) => void;
+  disabled?: boolean;
+  error?: Error;
+}
+
 // A component that accepts a single user input
-function AuthBox(props) {
+function AuthBox(props: AuthBoxProps) {
   const [value, setValue] = useState("");
 
   // A react form submit handler
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    props.onSubmit(value);
+    props.onSaveToken(value);
   };
 
   return (
     <form className="w-full" onSubmit={handleSubmit}>
       <input
-        className="w-full border-2 border-black rounded-lg py-2 px-4 focus:border-pink-600 outline-none mb-4"
+        className={cx(
+          "w-full border-2 border-black rounded-lg py-2 px-4 focus:border-pink-600 outline-none mb-4",
+          { "border-red-600": props.error },
+        )}
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -84,9 +104,17 @@ function AuthBox(props) {
 
       <button
         type="submit"
-        className="mb-4 py-2 px-4 bg-black text-white hover:bg-pink-600 rounded-lg">
+        className={cx("mb-4 py-2 px-4 bg-black text-white hover:bg-pink-600 rounded-lg", {
+          "pointer-events-none opacity-75": props.disabled,
+        })}>
         Save
       </button>
+
+      {props.error && (
+        <div className="bg-red-200 text-red-800 border-2 border-red-300 rounded-lg px-4 py-2 mb-4">
+          {props.error.message}
+        </div>
+      )}
 
       <div className="flex flex-col space-y-2">
         <p className="text-sm text-gray-700">
@@ -94,7 +122,8 @@ function AuthBox(props) {
         </p>
         <p className="text-sm text-gray-700">
           This token will only ever be stored in your browser and it will only be used to{" "}
-          <em>read</em> from your Notion workspace. No data will be modified or removed.
+          <em>read</em> from your Notion workspace.{" "}
+          <strong>No data will be modified or removed.</strong>
         </p>
         <p className="text-sm text-gray-700">
           Your data will not leave the browser. If you decide you no longer want your data stored
@@ -104,6 +133,33 @@ function AuthBox(props) {
     </form>
   );
 }
+
+class SearchPane extends React.Component<{
+  client: null | Client;
+  state: AppState;
+  onReauth?: () => void;
+}> {
+  render() {
+    const { client, state } = this.props;
+    return (
+      <div className="SearchPane">
+        <Autocomplete />
+      </div>
+    );
+  }
+}
+
+// A component that will display all the keys and values of the state prop
+const DebugInfo = ({ state }: { state: AppState }) => {
+  return (
+    <div>
+      <h2 className="text-sm text-gray-700">Debug Info</h2>
+      <pre>
+        <code>{JSON.stringify(state, null, 2)}</code>
+      </pre>
+    </div>
+  );
+};
 
 interface AppState {
   auth?: {
@@ -117,6 +173,11 @@ export default function Home() {
   const [status, setStatus] = useState("hydrating");
   const [state, setState] = useState<AppState>({});
   const [err, setErr] = useState(null);
+  const client = useRef<null | Client>(null);
+
+  const mergeState = (state: Partial<AppState>) => {
+    return setState((x) => ({ ...x, ...state }));
+  };
 
   useEffect(() => {
     setStatus("hydrating");
@@ -133,6 +194,42 @@ export default function Home() {
         setStatus("error");
       });
   }, []);
+
+  const handleSaveToken = (token: string) => {
+    // Notion doesn't like relative URLs so just construct a full one
+    const baseUrl = new URL(window.location.toString());
+    baseUrl.pathname = "/api/notion";
+
+    // Initializing a client
+    const notion = new Client({
+      auth: token,
+      baseUrl: baseUrl.toString(),
+    });
+
+    setStatus("loading");
+    setErr(null);
+
+    // Try out a request to confirm that the token actually works
+    notion.users
+      .list()
+      .then((res) => {
+        mergeState({ auth: { token } });
+        client.current = notion;
+        console.log(res);
+      })
+      .catch((err) => {
+        console.warn(err);
+        setErr(new Error("Failed to fetch. This usually means the token is invalid or expired."));
+      })
+      .finally(() => setStatus("idle"));
+  };
+
+  const deauthorize = () => {
+    storage.current.clear();
+    mergeState({ auth: { token: "" } });
+  };
+
+  const loading = status === "loading";
 
   return (
     <div className={""}>
@@ -157,13 +254,16 @@ export default function Home() {
           want to get to my notes NOW!
         </p>
 
-        {state.auth ? (
+        {state.auth?.token ? (
           <div className={"autocomplete"}>
-            <Autocomplete />
+            <SearchPane state={state} client={client.current} onReauth={deauthorize} />
+            <DebugInfo state={state} />
           </div>
         ) : (
-          <AuthBox />
+          <AuthBox onSaveToken={handleSaveToken} disabled={loading} error={err} />
         )}
+
+        {loading && <TextSpinner className="mt-4" />}
       </main>
     </div>
   );

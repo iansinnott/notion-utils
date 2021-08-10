@@ -20,3 +20,30 @@
     box-sizing: border-box;
   }
 }
+
+@layer components {
+  .text-spinner {
+    font-family: "Menlo", monospace;
+  }
+
+  .text-spinner::after {
+    animation: anim-dots 300ms steps(3) infinite;
+    animation-direction: alternate;
+    content: "...";
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: top;
+  }
+
+  @keyframes anim-dots {
+    0% {
+      width: 0;
+    }
+    75% {
+      width: 3ch;
+    }
+    100% {
+      width: 3ch;
+    }
+  }
+}
