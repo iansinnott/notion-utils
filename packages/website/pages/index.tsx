@@ -175,8 +175,7 @@ function AuthBox(props: AuthBoxProps) {
           <strong>No data will be modified or removed.</strong>
         </p>
         <p className="text-sm text-gray-700">
-          Your data will not leave the browser. If you decide you no longer want your data stored
-          here you can remove it from <code>localStorage</code>.
+          Your data will be stored in the browser using <code>localStorage</code>.
         </p>
       </div>
     </form>
@@ -376,6 +375,71 @@ const fetchAll = (client: Client, cursor = undefined): Promise<SearchResponse["r
     });
 };
 
+const FAQ = () => {
+  return (
+    <div className="faq flex flex-col space-y-4">
+      <div>
+        <p className="question mb-2 text-lg">How is my data stored?</p>
+        <p className="text-gray-800">
+          Its stored in your web browser, in <code>localStorage</code> to be specific.
+        </p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">Is the code open source?</p>
+        <p className="text-gray-800">
+          Yes. As I write this I haven't yet pushed it to GitHub, so I don't have a link yet, but by
+          the time you read this it will be up.
+        </p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">Why do you require an integration token?</p>
+        <p className="text-gray-800">Without this token we can't access the Notion API.</p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">Why don't you use OAuth?</p>
+        <p className="text-gray-800">
+          OAuth would probably provide a better experience but pasting in your own integration token
+          was quicker to set up.
+        </p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">What is this?</p>
+        <p className="text-gray-800">
+          A search box that will let you search through your Notion documents. Technically, this
+          project just stores your Notion docs in local storage and then lets you search them. It's
+          sort of like offline search for Notion.
+        </p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">Who made this?</p>
+        <p className="text-gray-800">
+          <span className="mr-3">👋 </span>
+          <a href="https://twitter.com/ian_sinn">@ian_sinn</a>
+        </p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">Why did you make this?</p>
+        <p className="text-gray-800">
+          I created this site because I like Notion but the search feature could be much faster. I
+          want to get to my notes NOW!
+        </p>
+        <p className="text-gray-800">I also just wanted to try out the new Notion API.</p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">What's the license?</p>
+        <p className="text-gray-800">MIT</p>
+      </div>
+      <div>
+        <p className="question mb-2 text-lg">Is this actually useful?</p>
+        <p className="text-gray-800">
+          It's questonable. Quickly jumping to pages in Notion is very useful, but having to open a
+          separate website in order to do so is definitely not ideal. For now this is an experiment.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export default function Home() {
   const initialState = { results: [], auth: null, openDesktopApp: false };
   const storage = useRef(new StorageProvider());
@@ -490,16 +554,11 @@ export default function Home() {
           The unofficial Notion search box. Start typing and find your pages and databases.
         </p>
 
-        <p className="mb-4">
-          I created this site because I like Notion but the search feature could be much faster. I
-          want to get to my notes NOW!
-        </p>
-
         {state.auth?.token && (
           <div className={"autocomplete w-full"}>
-            <div>
-              <Switch.Group as="div" className="flex items-center justify-between mb-4">
-                <span className="flex-grow flex flex-col">
+            <div className="flex justify-center">
+              <Switch.Group as="div" className="flex items-center mb-4">
+                <span className="flex flex-col">
                   <Switch.Label
                     as="span"
                     className="text-sm font-medium text-gray-900 mr-8"
@@ -593,6 +652,8 @@ export default function Home() {
 
         {status === "hydrating" && <TextSpinner className="mt-4" />}
         {loading && <TextSpinner className="mt-4" />}
+        <hr className="my-12 border-b border-dashed border-gray-200 w-full" />
+        <FAQ />
       </main>
     </div>
   );
