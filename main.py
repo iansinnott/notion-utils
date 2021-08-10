@@ -4,6 +4,7 @@ import os
 import sys
 import json
 
+# Note that this token is the cookie token you can get from your browser. This is how you access the private API.
 try:
     TOKEN = os.environ['NOTION_TOKEN_V2']
 except Exception as err:
