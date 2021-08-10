@@ -30,3 +30,7 @@ Examples:
   * There is currently no official API for this.
   
 That being said, it's still early days and the Notion devs are iterating on the official API. Hopefully soon anything will be possible!
+
+## Directory Structure
+
+All of the place. It's also changing often enough that any description might be out of date. There's not very much code though, so hopefully it's approachable.
