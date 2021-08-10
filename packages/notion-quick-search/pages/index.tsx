@@ -294,7 +294,15 @@ class SearchPane extends React.Component<{
     const { getClient, state } = this.props;
     return (
       <div className="SearchPane">
-        <Autocomplete openOnFocus getSources={this.props.getSources} />
+        <Autocomplete
+          onSubmit={({ event }) => {
+            event.preventDefault();
+            event.stopPropagation();
+            log("[submit] submission should be handled already, not submitting the form");
+          }}
+          openOnFocus
+          getSources={this.props.getSources}
+        />
       </div>
     );
   }
