@@ -146,7 +146,7 @@ function AuthBox(props: AuthBoxProps) {
           "w-full border-2 border-black rounded-lg py-2 px-4 focus:border-indigo-600 outline-none mb-4",
           { "border-red-600": props.error },
         )}
-        type="text"
+        type="password"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Enter your integration token"
@@ -597,22 +597,24 @@ export default function Home() {
                     );
                   },
 
-                  // I don't think this is necessary, but many of the docs use this method so here we are.
+                  // @note Databases don't come with a URL prop for some reason, so hopefully Notion redirects URLs like the default here
                   getItemUrl({ item }) {
-                    return item.url;
+                    return item.url || `https://www.notion.so/${item.id.replace(/-/g, "")}`;
                   },
 
                   // Called when a list item is clicked or the enter key is pressed
-                  onSelect({ item, event }) {
+                  // @note itemUrl is built by the above function
+                  onSelect({ item, itemUrl, event }) {
                     event.preventDefault();
                     event.stopPropagation();
 
                     if (state.openDesktopApp) {
                       const url = getLocalNotionUrl(item);
                       log("[open] Opening desktop URL", url);
-                      window.open(url);
+                      // @note For whateve reason using `window.open` is more janky than `window.location.href`. Might be browser-specific
+                      window.location.href = url; // Open the external app
                     } else {
-                      window.open(item.url);
+                      window.open(itemUrl); // Open a new tab
                     }
                   },
                   templates: {
