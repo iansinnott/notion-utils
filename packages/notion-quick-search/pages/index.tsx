@@ -1,5 +1,4 @@
 import Head from "next/head";
-import Image from "next/image";
 import React, { createElement, FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import { autocomplete } from "@algolia/autocomplete-js";
 import { render } from "react-dom";
@@ -8,16 +7,17 @@ import cx from "classnames";
 import { AutocompleteOptions, BaseItem } from "@algolia/autocomplete-core";
 import { Database, Page, PropertyValue, RichText } from "@notionhq/client/build/src/api-types";
 import { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
-import { Highlight } from "react-instantsearch-dom";
 import reactStringReplace from "react-string-replace";
 import { Switch } from "@headlessui/react";
 
+// Oh hai, just a dev logger here
 const log = (...args) => {
   if (process.env.NODE_ENV === "development") {
     console.log(...args);
   }
 };
 
+// Like a loading spinner, but in pure text form
 const TextSpinner = ({ className = "" }) => {
   return <div className={cx("text-spinner w-8", className)}></div>;
 };
@@ -41,7 +41,7 @@ const renderPropertyPlainText = (x: PropertyValue) => {
   }
 };
 
-// @note We use a _single_ slash here. As of this commit, that's how Notion works.
+// Get a URL to the desktop version of Notion
 const getLocalNotionUrl = ({ id }: { id: string }) => {
   const idWithoutHyphens = id.replace(/-/g, "");
   return `notion:/` + idWithoutHyphens;
@@ -84,6 +84,7 @@ function Autocomplete(props: Partial<AutocompleteOptions<BaseItem>>) {
   return <div ref={containerRef} />;
 }
 
+// @note I know what you're thinking: What is this storage provider all about? Maybe it will prove useful later, but for now it's a not-very-interesting wrapper over localStorage
 class StorageProvider {
   backend: typeof window.localStorage;
 
@@ -587,26 +588,27 @@ export default function Home() {
             <SearchPane
               getSources={({ query }) => [
                 {
-                  sourceId: "notion",
+                  sourceId: "notion_local",
+
+                  // Yup, no sophisticated matching going on here. Just a simple call to `includes`.
                   getItems({ query }) {
                     return state.results.filter((x) =>
                       x.plain_text_title.toLowerCase().includes(query.toLowerCase()),
                     );
-                    // return [
-                    //   { label: "Twitter", name: "twitter name", url: "https://twitter.com" },
-                    //   { label: "GitHub", name: "github name", url: "https://github.com" },
-                    // ].filter(({ label }) => label.toLowerCase().includes(query.toLowerCase()));
                   },
-                  // @ts-ignore
+
+                  // I don't think this is necessary, but many of the docs use this method so here we are.
                   getItemUrl({ item }) {
                     return item.url;
                   },
+
+                  // Called when a list item is clicked or the enter key is pressed
                   onSelect({ item, event }) {
                     event.preventDefault();
                     event.stopPropagation();
 
                     if (state.openDesktopApp) {
-                      const url = `notion:/` + item.id.replace(/-/g, "");
+                      const url = getLocalNotionUrl(item);
                       log("[open] Opening desktop URL", url);
                       window.open(url);
                     } else {
@@ -616,6 +618,9 @@ export default function Home() {
                   templates: {
                     item({ item, components }) {
                       return <SearchResultItem hit={item} components={components} query={query} />;
+                    },
+                    noResults() {
+                      return "Nothing found";
                     },
                   },
                 },
@@ -660,6 +665,7 @@ export default function Home() {
 }
 
 // get static props
+// @todo Not a log going on here...
 export async function getStaticProps() {
   return { props: {} };
 }
