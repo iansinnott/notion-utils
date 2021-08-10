@@ -9,6 +9,7 @@ import { AutocompleteOptions, BaseItem } from "@algolia/autocomplete-core";
 import { Database, Page, PropertyValue, RichText } from "@notionhq/client/build/src/api-types";
 import { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import { Highlight } from "react-instantsearch-dom";
+import reactStringReplace from "react-string-replace";
 
 const log = (...args) => {
   if (process.env.NODE_ENV === "development") {
@@ -181,18 +182,87 @@ function AuthBox(props: AuthBoxProps) {
   );
 }
 
-function SearchResultItem({ hit, components }) {
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const IconDocument = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor">
+    <path
+      fillRule="evenodd"
+      d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
+
+const IconDatabase = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor">
+    <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z" />
+    <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z" />
+    <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z" />
+  </svg>
+);
+
+const icons = {
+  page: IconDocument,
+  database: IconDatabase,
+};
+
+const highlight = (str: string, target: string) => {
+  return reactStringReplace(str, target, (match, i) => (
+    <em key={i} className="bg-yellow-200 border-b border-yellow-400">
+      {match}
+    </em>
+  ));
+};
+
+function SearchResultItem({ hit, components, query }) {
   const k = "plain_text_title";
-  console.log(hit[k]);
+  const Icon = icons[hit.object];
   return (
     <a href={hit.url} className="aa-ItemLink">
-      <div className="aa-ItemContent">
-        <div className="aa-ItemTitle">
-          <components.Highlight
-            hit={hit}
-            attributesToHighlight={["plain_text_title"]}
-            attribute="plain_text_title"
-          />
+      <div className="aa-ItemWrapper">
+        <div className="flex justify-between">
+          {Icon && (
+            <div className="mr-2">
+              <Icon />
+            </div>
+          )}
+          <div className="aa-ItemContentBody">
+            <div className="aa-ItemContentTitle h-5">{highlight(hit[k], query)}</div>
+            <div className="aa-ItemContentDescription flex space-x-4 font-mono opacity-60">
+              <div>
+                <span className="uppercase text-xs">Updated</span>{" "}
+                {formatDate(new Date(hit.last_edited_time))}
+              </div>
+              <div>
+                <span>Created</span> {formatDate(new Date(hit.created_time))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="aa-ItemActions">
+          <button
+            className="aa-ItemActionButton aa-DesktopOnly aa-ActiveOnly"
+            type="button"
+            title="Select">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M18.984 6.984h2.016v6h-15.188l3.609 3.609-1.406 1.406-6-6 6-6 1.406 1.406-3.609 3.609h13.172v-4.031z" />
+            </svg>
+          </button>
         </div>
       </div>
     </a>
@@ -203,18 +273,17 @@ class SearchPane extends React.Component<{
   getClient: () => null | Client;
   state: AppState;
   onReauth?: () => void;
-  sources: any[];
+  getSources: ({ query: string }) => any[];
 }> {
   render() {
     const { getClient, state } = this.props;
     return (
       <div className="SearchPane">
         <Autocomplete
+          autoFocus
           openOnFocus
           // @ts-ignore
-          getSources={() => {
-            return this.props.sources;
-          }}
+          getSources={this.props.getSources}
         />
       </div>
     );
@@ -404,7 +473,7 @@ export default function Home() {
         {state.auth?.token && (
           <div className={"autocomplete w-full"}>
             <SearchPane
-              sources={[
+              getSources={({ query }) => [
                 {
                   sourceId: "notion",
                   getItems({ query }) {
@@ -422,7 +491,7 @@ export default function Home() {
                   },
                   templates: {
                     item({ item, components }) {
-                      return <SearchResultItem hit={item} components={components} />;
+                      return <SearchResultItem hit={item} components={components} query={query} />;
                     },
                   },
                 },
