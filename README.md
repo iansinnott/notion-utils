@@ -1,5 +1,7 @@
 # Notion Utils
 
+🚧 WIP 🚧  This repo is very much a work in progress. Just a heads up.
+
 ## Official API
 
 Utilize the Typescript utils.
