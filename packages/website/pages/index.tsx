@@ -5,12 +5,58 @@ import { autocomplete } from "@algolia/autocomplete-js";
 import { render } from "react-dom";
 import { Client } from "@notionhq/client";
 import cx from "classnames";
+import { AutocompleteOptions, BaseItem } from "@algolia/autocomplete-core";
+import { Database, Page, PropertyValue, RichText } from "@notionhq/client/build/src/api-types";
+import { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
+import { Highlight } from "react-instantsearch-dom";
+
+const log = (...args) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log(...args);
+  }
+};
 
 const TextSpinner = ({ className = "" }) => {
   return <div className={cx("text-spinner w-8", className)}></div>;
 };
 
-function Autocomplete(props) {
+// Confusing function name? Agreed...
+// Given a rich text object (a list) return the plain text version
+const renderRichPlainText = (xs: RichText[]) => {
+  return xs
+    .map((x) => x.plain_text)
+    .filter(Boolean)
+    .join(" ");
+};
+
+// Given a property value render it as plain text. Properties are found on database rows.
+const renderPropertyPlainText = (x: PropertyValue) => {
+  switch (x.type) {
+    case "title":
+      return renderRichPlainText(x.title);
+    default:
+      return JSON.stringify(x);
+  }
+};
+
+// @note We use a _single_ slash here. As of this commit, that's how Notion works.
+const getLocalNotionUrl = ({ id }: { id: string }) => {
+  const idWithoutHyphens = id.replace(/-/g, "");
+  return `notion:/` + idWithoutHyphens;
+};
+
+// Format an object that came back from the search results
+const formatObject = (obj: Page | Database) => {
+  switch (obj.object) {
+    case "page":
+      const titleProp = Object.values(obj.properties).find((x) => x.type === "title");
+      return renderPropertyPlainText(titleProp);
+    case "database":
+      return renderRichPlainText(obj.title);
+  }
+};
+
+function Autocomplete(props: Partial<AutocompleteOptions<BaseItem>>) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -18,6 +64,7 @@ function Autocomplete(props) {
       return undefined;
     }
 
+    // @ts-ignore - Why does ts dislike prop spreading like this...
     const search = autocomplete({
       container: containerRef.current,
       renderer: { createElement, Fragment },
@@ -39,7 +86,7 @@ class StorageProvider {
   backend: typeof window.localStorage;
 
   constructor() {
-    // @ts-ignore
+    // @ts-ignore - TS doesn't like my localStorage shim, but this is only for getting past initial server render
     this.backend =
       typeof window !== "undefined"
         ? window.localStorage
@@ -134,44 +181,114 @@ function AuthBox(props: AuthBoxProps) {
   );
 }
 
+function SearchResultItem({ hit, components }) {
+  const k = "plain_text_title";
+  console.log(hit[k]);
+  return (
+    <a href={hit.url} className="aa-ItemLink">
+      <div className="aa-ItemContent">
+        <div className="aa-ItemTitle">
+          <components.Highlight
+            hit={hit}
+            attributesToHighlight={["plain_text_title"]}
+            attribute="plain_text_title"
+          />
+        </div>
+      </div>
+    </a>
+  );
+}
+
 class SearchPane extends React.Component<{
-  client: null | Client;
+  getClient: () => null | Client;
   state: AppState;
   onReauth?: () => void;
+  sources: any[];
 }> {
   render() {
-    const { client, state } = this.props;
+    const { getClient, state } = this.props;
     return (
       <div className="SearchPane">
-        <Autocomplete />
+        <Autocomplete
+          openOnFocus
+          // @ts-ignore
+          getSources={() => {
+            return this.props.sources;
+          }}
+        />
       </div>
     );
   }
 }
 
 // A component that will display all the keys and values of the state prop
-const DebugInfo = ({ state }: { state: AppState }) => {
+const DebugInfo = ({ state, status }: { state: AppState; status: string }) => {
   return (
-    <div>
-      <h2 className="text-sm text-gray-700">Debug Info</h2>
-      <pre>
-        <code>{JSON.stringify(state, null, 2)}</code>
-      </pre>
+    <div className="border-2 border-gray-400 bg-gray-200 rounded-lg px-2 py-2 font-mono mt-8 max-w-lg mx-auto overflow-auto w-full">
+      <h2 className="uppercase text-xs text-gray-700">Status</h2>
+      <pre>{status}</pre>
     </div>
   );
 };
 
 interface AppState {
+  results: Array<(Page | Database) & { plain_text_title: string }>;
   auth?: {
     username?: string;
     token: string;
   };
 }
 
+const initNotion = (token: string) => {
+  // Notion doesn't like relative URLs so just construct a full one
+  const baseUrl = new URL(window.location.toString());
+  baseUrl.pathname = "/api/notion";
+
+  // Initializing a client
+  const notion = new Client({
+    auth: token,
+    baseUrl: baseUrl.toString(),
+  });
+
+  // @ts-ignore
+  window.notion = notion;
+
+  return notion;
+};
+
+// Recursively fetch everything the token has access to. This populates the
+// searchable results. We fetch everything all at once like this so as to
+// avoid hitting the API too often. This does mean we need to re-fetch
+// occasionally though.
+const fetchAll = (client: Client, cursor = undefined): Promise<SearchResponse["results"]> => {
+  log("[fetch all]", cursor);
+  return client
+    .search({
+      query: "",
+      sort: {
+        direction: "descending", // Newer first
+        timestamp: "last_edited_time",
+      },
+      start_cursor: cursor,
+    })
+    .then((res) => {
+      // const results = res.results.map((x) => {
+      //   return { ...x, plain_text_title: formatObject(x) };
+      // });
+      if (res.has_more) {
+        return fetchAll(client, res.next_cursor).then((x) => {
+          return [...res.results, ...x];
+        });
+      } else {
+        return res.results;
+      }
+    });
+};
+
 export default function Home() {
   const storage = useRef(new StorageProvider());
   const [status, setStatus] = useState("hydrating");
-  const [state, setState] = useState<AppState>({});
+  const [state, setState] = useState<AppState>({ results: [], auth: null });
   const [err, setErr] = useState(null);
   const client = useRef<null | Client>(null);
 
@@ -179,32 +296,61 @@ export default function Home() {
     return setState((x) => ({ ...x, ...state }));
   };
 
+  const hydrate = () =>
+    storage.current.getItem("appState").then((x: AppState) => {
+      if (!x) return state;
+
+      setState(x);
+
+      if (x.auth?.token) {
+        client.current = initNotion(x.auth?.token);
+      }
+
+      return x;
+    });
+
+  const persist = (): void => {
+    log("[persist]", state);
+    storage.current.setItem("appState", state);
+  };
+
+  const refresh = () => {
+    return fetchAll(client.current)
+      .then((xs) =>
+        xs.map((x) => {
+          return { ...x, plain_text_title: formatObject(x) };
+        }),
+      )
+      .then((results) => mergeState({ results }));
+  };
+
   useEffect(() => {
+    // @ts-ignore
+    log("Root initialized");
+
     setStatus("hydrating");
     setErr(null);
 
-    storage.current
-      .getItem("appState")
-      .then((data) => {
-        setState(data || {});
+    hydrate()
+      .then((x) => {
+        if (x.results.length === 0 && client.current) {
+          return refresh();
+        }
+      })
+      .then(() => {
         setStatus("idle");
       })
       .catch((err) => {
+        console.warn(err);
         setErr(err);
         setStatus("error");
       });
   }, []);
 
-  const handleSaveToken = (token: string) => {
-    // Notion doesn't like relative URLs so just construct a full one
-    const baseUrl = new URL(window.location.toString());
-    baseUrl.pathname = "/api/notion";
+  useEffect(persist, [state]);
 
-    // Initializing a client
-    const notion = new Client({
-      auth: token,
-      baseUrl: baseUrl.toString(),
-    });
+  const handleSaveToken = (token: string) => {
+    const notion = initNotion(token);
 
     setStatus("loading");
     setErr(null);
@@ -216,6 +362,7 @@ export default function Home() {
         mergeState({ auth: { token } });
         client.current = notion;
         console.log(res);
+        return refresh();
       })
       .catch((err) => {
         console.warn(err);
@@ -254,15 +401,52 @@ export default function Home() {
           want to get to my notes NOW!
         </p>
 
-        {state.auth?.token ? (
-          <div className={"autocomplete"}>
-            <SearchPane state={state} client={client.current} onReauth={deauthorize} />
-            <DebugInfo state={state} />
+        {state.auth?.token && (
+          <div className={"autocomplete w-full"}>
+            <SearchPane
+              sources={[
+                {
+                  sourceId: "notion",
+                  getItems({ query }) {
+                    return state.results.filter((x) =>
+                      x.plain_text_title.toLowerCase().includes(query.toLowerCase()),
+                    );
+                    // return [
+                    //   { label: "Twitter", name: "twitter name", url: "https://twitter.com" },
+                    //   { label: "GitHub", name: "github name", url: "https://github.com" },
+                    // ].filter(({ label }) => label.toLowerCase().includes(query.toLowerCase()));
+                  },
+                  // @ts-ignore
+                  getItemUrl({ item }) {
+                    return item.url;
+                  },
+                  templates: {
+                    item({ item, components }) {
+                      return <SearchResultItem hit={item} components={components} />;
+                    },
+                  },
+                },
+              ]}
+              state={state}
+              getClient={() => client.current}
+              onReauth={deauthorize}
+            />
+            <DebugInfo state={state} status={status} />
+            <div className="flex justify-end w-full mt-4">
+              <button
+                className="px-2 py-1 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-800 hover:bg-red-100"
+                onClick={deauthorize}>
+                <small>Deauthorize</small>
+              </button>
+            </div>
           </div>
-        ) : (
+        )}
+
+        {!state.auth?.token && status !== "hydrating" && (
           <AuthBox onSaveToken={handleSaveToken} disabled={loading} error={err} />
         )}
 
+        {status === "hydrating" && <TextSpinner className="mt-4" />}
         {loading && <TextSpinner className="mt-4" />}
       </main>
     </div>
