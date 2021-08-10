@@ -11,6 +11,7 @@ const apiProxy = createProxyMiddleware({
   changeOrigin: true,
   pathRewrite: { [`^/api/notion`]: "" },
   secure: true,
+  logLevel: "debug",
 });
 
 export const config = {
@@ -20,4 +21,8 @@ export const config = {
   },
 };
 
-export default apiProxy;
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log("Here we go. Off to fetch some notions", req.method, req.url);
+  // @ts-ignore - ts doesnt think this is callable
+  apiProxy(req, res);
+}

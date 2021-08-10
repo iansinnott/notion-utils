@@ -13,7 +13,7 @@ import { Switch } from "@headlessui/react";
 
 // Oh hai, just a dev logger here
 const log = (...args) => {
-  if (process.env.NODE_ENV === "development") {
+  if (process.env.NODE_ENV === "development" || localStorage.getItem("debug")) {
     console.log(...args);
   }
 };
@@ -343,11 +343,14 @@ const initNotion = (token: string) => {
   // Notion doesn't like relative URLs so just construct a full one
   const baseUrl = new URL(window.location.toString());
   baseUrl.pathname = "/api/notion";
+  const url = baseUrl.toString();
+
+  log("[init notion] with url", baseUrl);
 
   // Initializing a client
   const notion = new Client({
     auth: token,
-    baseUrl: baseUrl.toString(),
+    baseUrl: url,
   });
 
   // @ts-ignore
