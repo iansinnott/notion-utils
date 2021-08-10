@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 import Head from "next/head";
 import React, { createElement, FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import { autocomplete } from "@algolia/autocomplete-js";
@@ -479,7 +480,7 @@ export default function Home() {
     storage.current.setItem("appState", state);
   };
 
-  const refresh = () => {
+  const refresh = React.useCallback(() => {
     setStatus("loading");
     return fetchAll(client.current)
       .then((xs) =>
@@ -489,7 +490,7 @@ export default function Home() {
       )
       .then((results) => mergeState({ results, lastChecked: Date.now() }))
       .finally(() => setStatus("idle"));
-  };
+  }, []);
 
   useEffect(() => {
     // @ts-ignore
@@ -512,6 +513,8 @@ export default function Home() {
         setErr(err);
         setStatus("error");
       });
+    // Ignore exhaustive deps warning here. Just run once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(persist, [state]);
