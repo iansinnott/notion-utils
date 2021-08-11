@@ -2,6 +2,16 @@
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
 import { Client, LogLevel } from "@notionhq/client";
+import {
+  APISingularObject,
+  Block,
+  Database,
+  Page,
+  PaginatedList,
+  PropertyValue,
+  RichText,
+  User,
+} from "@notionhq/client/build/src/api-types";
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 
@@ -11,8 +21,66 @@ const notion = new Client({
   logger: console.error,
 });
 
+// For all the monorepo we've got going there's really a lot of duplicated code...
+//
+const renderRichPlainText = (xs: RichText[]) => {
+  return xs
+    .map((x) => x.plain_text)
+    .filter(Boolean)
+    .join(" ");
+};
+
+// Given a property value render it as plain text. Properties are found on database rows.
+const renderPropertyPlainText = (x: PropertyValue) => {
+  switch (x.type) {
+    case "title":
+      return renderRichPlainText(x.title);
+    default:
+      return JSON.stringify(x);
+  }
+};
+
+const NotionRenderer = {
+  getTitle: (obj: Page | Database | User | Block) => {
+    switch (obj.object) {
+      case "page":
+        const titleProp = Object.values(obj.properties).find((x) => x.type === "title");
+        if (!titleProp) return "<unknown>";
+        return renderPropertyPlainText(titleProp);
+      case "database":
+        return renderRichPlainText(obj.title);
+      default:
+        return "bla|" + obj.object;
+    }
+  },
+
+  // Get a URL to the desktop version of Notion
+  getLocalNotionUrl: ({ id }: { id: string }) => {
+    const idWithoutHyphens = id.replace(/-/g, "");
+    return `notion:/` + idWithoutHyphens;
+  },
+
+  getNotionUrl: ({ id, url }: { id: string; url?: string }) => {
+    const idWithoutHyphens = id.replace(/-/g, "");
+    return url || `https://www.notion.so/` + idWithoutHyphens;
+  },
+};
+
+const listFormatter = (list: PaginatedList | APISingularObject) => {
+  const formatListItem = (x: PaginatedList["results"][number]) => {
+    return `[${x.object}] (${x.id}) ${NotionRenderer.getTitle(x)} <${NotionRenderer.getNotionUrl(
+      x,
+    )}>`;
+  };
+
+  if (list.object !== "list") return formatListItem(list);
+
+  return list.results.map(formatListItem).join("\n");
+};
+
 const serializers = {
   json: (x) => JSON.stringify(x, null, 2),
+  list: listFormatter,
 };
 
 const main = async () => {
