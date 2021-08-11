@@ -474,8 +474,10 @@ const FAQ = () => {
       <div>
         <p className="question mb-2 text-lg">Is the code open source?</p>
         <p className="text-gray-800">
-          Yes.
-          <a href="https://github.com/iansinnott/notion-utils/tree/master/packages/notion-quick-search">
+          Yes.{" "}
+          <a
+            className="underline text-blue-500 hover:text-blue-600 hover:no-underline"
+            href="https://github.com/iansinnott/notion-utils/tree/master/packages/notion-quick-search">
             You can find the source here.
           </a>
         </p>
