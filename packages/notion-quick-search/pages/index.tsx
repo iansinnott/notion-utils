@@ -11,6 +11,7 @@ import { SearchParameters, SearchResponse } from "@notionhq/client/build/src/api
 import reactStringReplace from "react-string-replace";
 import { Switch } from "@headlessui/react";
 import { RequestParameters } from "@notionhq/client/build/src/Client";
+import { debounce } from "throttle-debounce";
 
 // Oh hai, just a dev logger here
 const log = (...args) => {
@@ -362,6 +363,8 @@ const DebugInfo = ({ state, status }: { state: AppState; status: string }) => {
     window.try2 = () => {
       return users(state.auth.token);
     };
+    //@ts-ignore
+    window.notion = initNotion(state.auth?.token);
   }, [state.auth]);
 
   return (
@@ -408,26 +411,29 @@ interface AppState {
 // using the next.js proxy and using the notion default baseUrl results in cors
 // errors.
 //
-// const initNotion = (token: string) => {
-//   // Notion doesn't like relative URLs so just construct a full one
-//   const baseUrl = new URL(window.location.toString());
-//   baseUrl.pathname = "/api/notion";
-//   const url = baseUrl.toString();
+const initNotion = (token: string) => {
+  // Notion doesn't like relative URLs so just construct a full one
+  // const baseUrl = new URL(window.location.toString());
+  // baseUrl.pathname = "/api/notion";
+  // const url = baseUrl.toString();
+  //
 
-//   log("[init notion] with url", baseUrl);
+  const baseUrl = "https://cors-anywhere.herokuapp.com/https://api.notion.com";
 
-//   // Initializing a client
-//   const notion = new Client({
-//     auth: token,
-//     // baseUrl: url,
-//     logLevel: LogLevel.DEBUG,
-//   });
+  log("[init notion] with url", baseUrl);
 
-//   // @ts-ignore
-//   window.notion = notion;
+  // Initializing a client
+  const notion = new Client({
+    auth: token,
+    baseUrl,
+    logLevel: LogLevel.DEBUG,
+  });
 
-//   return notion;
-// };
+  // @ts-ignore
+  window.notion = notion;
+
+  return notion;
+};
 
 // Recursively fetch everything the token has access to. This populates the
 // searchable results. We fetch everything all at once like this so as to
@@ -539,10 +545,17 @@ export default function Home() {
       return x;
     });
 
-  const persist = (): void => {
-    log("[persist]", state);
-    storage.current.setItem("appState", state);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const persist = React.useCallback(
+    debounce(2000, (state: any) => {
+      log("[persist]", state);
+      storage.current.setItem("appState", state);
+    }),
+    [],
+  );
+
+  // Keep state stored in local storage
+  useEffect(() => persist(state), [state, persist]);
 
   const refresh = React.useCallback(
     (token = state.auth?.token) => {
@@ -595,8 +608,6 @@ export default function Home() {
     // Ignore exhaustive deps warning here. Just run once on init.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(persist, [state]);
 
   const handleSaveToken = (token: string) => {
     setStatus("loading");
