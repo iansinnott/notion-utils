@@ -311,6 +311,34 @@ class SearchPane extends React.Component<{
 
 // A component that will display all the keys and values of the state prop
 const DebugInfo = ({ state, status }: { state: AppState; status: string }) => {
+  useEffect(() => {
+    // @ts-ignore
+    window.try1 = () => {
+      return fetch("/api/notion/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token: state.auth.token,
+          request: {
+            method: "post",
+            path: "search",
+            auth: state.auth.token,
+            body: {
+              query: "",
+              sort: {
+                direction: "descending", // Newer first
+                timestamp: "last_edited_time",
+              },
+              start_cursor: undefined,
+            },
+          },
+        }),
+      });
+    };
+  }, [state.auth]);
+
   return (
     <div className="border-2 border-gray-400 bg-gray-200 rounded-lg px-2 py-2 font-mono mt-8 max-w-lg mx-auto overflow-auto w-full flex flex-col space-y-2">
       <div>
@@ -551,38 +579,6 @@ export default function Home() {
   };
 
   const loading = status === "loading";
-
-  useEffect(() => {
-    // @ts-ignore
-    window.try1 = () => {
-      return client.current.request({
-        path: "search",
-        method: "post",
-        body: { query: "" },
-        auth: state.auth.token,
-      });
-    };
-    // @ts-ignore
-    window.try2 = () => {
-      return fetch("/api/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token: state.auth.token,
-          query: {
-            query: "",
-            sort: {
-              direction: "descending", // Newer first
-              timestamp: "last_edited_time",
-            },
-            start_cursor: undefined,
-          },
-        }),
-      }).then((x) => x.json());
-    };
-  }, [state.auth?.token]);
 
   return (
     <div className={""}>
