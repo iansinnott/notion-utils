@@ -375,6 +375,18 @@ const DebugInfo = ({ state, status }: { state: AppState; status: string }) => {
         <pre>{state.results.length}</pre>
       </div>
       <div>
+        <h2 className="uppercase text-xs text-gray-700">Documents without titles</h2>
+        <pre>{state.results.length - state.results.filter((x) => x.plain_text_title).length}</pre>
+      </div>
+      <div>
+        <h2 className="uppercase text-xs text-gray-700">Page Count</h2>
+        <pre>{state.results.filter((x) => x.object === "page").length}</pre>
+      </div>
+      <div>
+        <h2 className="uppercase text-xs text-gray-700">Database Count</h2>
+        <pre>{state.results.filter((x) => x.object === "database").length}</pre>
+      </div>
+      <div>
         <h2 className="uppercase text-xs text-gray-700">Last Checked</h2>
         <pre>{state.lastChecked ? formatDate(new Date(state.lastChecked)) : "--"}</pre>
       </div>
@@ -532,17 +544,32 @@ export default function Home() {
     storage.current.setItem("appState", state);
   };
 
-  const refresh = React.useCallback(() => {
-    setStatus("loading");
-    return fetchAll(state.auth?.token)
-      .then((xs) =>
-        xs.map((x) => {
-          return { ...x, plain_text_title: formatObject(x) };
-        }),
-      )
-      .then((results) => mergeState({ results, lastChecked: Date.now() }))
-      .finally(() => setStatus("idle"));
-  }, [state.auth?.token]);
+  const refresh = React.useCallback(
+    (token = state.auth?.token) => {
+      setStatus("loading");
+      return fetchAll(state.auth?.token)
+        .then((xs) => {
+          const formatted = xs.map((x) => {
+            return { ...x, plain_text_title: formatObject(x) };
+          });
+          const titled = formatted.filter((x) => x.plain_text_title);
+
+          if (titled.length !== formatted.length) {
+            console.warn(
+              `Of your ${formatted.length} objects only ${titled.length} had an identifiable title`,
+            );
+          }
+
+          // Still storing them all in local storage. This way they can be
+          // inspected. Maybe its my parsing logic that is off, not the data
+          // itself
+          return formatted;
+        })
+        .then((results) => mergeState({ results, lastChecked: Date.now() }))
+        .finally(() => setStatus("idle"));
+    },
+    [state.auth?.token],
+  );
 
   useEffect(() => {
     // @ts-ignore
@@ -554,7 +581,7 @@ export default function Home() {
     hydrate()
       .then((x) => {
         if (x.results.length === 0 && state.auth?.token) {
-          return refresh();
+          return refresh(state.auth.token);
         }
       })
       .then(() => {
@@ -580,7 +607,7 @@ export default function Home() {
       .then((res) => {
         mergeState({ auth: { token } });
         console.log(res);
-        return refresh();
+        return refresh(token);
       })
       .catch((err) => {
         console.warn(err);
@@ -651,8 +678,10 @@ export default function Home() {
 
                   // Yup, no sophisticated matching going on here. Just a simple call to `includes`.
                   getItems({ query }) {
-                    return state.results.filter((x) =>
-                      x.plain_text_title.toLowerCase().includes(query.toLowerCase()),
+                    return state.results.filter(
+                      (x) =>
+                        x.plain_text_title &&
+                        x.plain_text_title.toLowerCase().includes(query.toLowerCase()),
                     );
                   },
 
