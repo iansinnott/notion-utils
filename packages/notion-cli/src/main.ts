@@ -17,6 +17,75 @@ const serializers = {
 
 const main = async () => {
   const argv = await yargs(process.argv.slice(2))
+    .command(
+      "search",
+      "Search objects accessible to your token",
+      (yargs) => {
+        yargs.options({
+          query: { type: "string", default: "" },
+          sort_direction: { choices: ["ascending", "descending"], default: "descending" },
+          sort_timestamp: { choices: ["last_edited_time"], default: "last_edited_time" },
+          start_cursor: { type: "string" },
+        });
+      },
+      (argv) => {
+        // We ignore sort_timestamp for now since its unused in the api
+        const { query, sort_direction, sort_timestamp, start_cursor } = argv;
+        return notion
+          .search({
+            query: query as string,
+            sort: {
+              direction: sort_direction as "ascending" | "descending",
+              timestamp: "last_edited_time",
+            },
+            start_cursor: start_cursor as string | undefined,
+          })
+
+          .then((x) => console.log(serializers[argv.format as string](x)));
+      },
+    )
+    .command("databases", "Interact with database objects", (yargs) => {
+      return yargs.command(
+        "get <uuid>",
+        "Get a specific database",
+        (yargs) => {
+          yargs.positional("uuid", { type: "string", demandOption: false });
+        },
+        (argv) => {
+          return notion.databases
+            .retrieve({ database_id: argv.uuid as string })
+            .then((x) => console.log(serializers[argv.format as string](x)));
+        },
+      );
+    })
+    .command("pages", "Interact with page objects", (yargs) => {
+      return yargs.command(
+        "get <uuid>",
+        "Get a specific page",
+        (yargs) => {
+          yargs.positional("uuid", { type: "string", demandOption: false });
+        },
+        (argv) => {
+          return notion.pages
+            .retrieve({ page_id: argv.uuid as string })
+            .then((x) => console.log(serializers[argv.format as string](x)));
+        },
+      );
+    })
+    .command("blocks", "Interact with block objects", (yargs) => {
+      return yargs.command(
+        "get <uuid>",
+        "Get a specific block",
+        (yargs) => {
+          yargs.positional("uuid", { type: "string", demandOption: false });
+        },
+        (argv) => {
+          return notion.blocks
+            .retrieve({ block_id: argv.uuid as string })
+            .then((x) => console.log(serializers[argv.format as string](x)));
+        },
+      );
+    })
     .command("users", "Interact with user objects", (yargs) => {
       return yargs
         .command(
