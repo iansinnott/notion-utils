@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
-import { Client, LogLevel } from "@notionhq/client";
+import { APIResponseError, Client, LogLevel } from "@notionhq/client";
 import {
   APISingularObject,
   Block,
@@ -31,12 +31,17 @@ const renderRichPlainText = (xs: RichText[]) => {
 };
 
 // Given a property value render it as plain text. Properties are found on database rows.
-const renderPropertyPlainText = (x: PropertyValue) => {
+const renderPropertyPlainText = (x: PropertyValue | Block) => {
   switch (x.type) {
-    case "title":
-      return renderRichPlainText(x.title);
+    // @todo Below will work in many cases. Not yet aware of exceptions, although there are bound to be
+    case "child_page":
+      return `[${x.child_page.title}](${NotionRenderer.getLocalNotionUrl(x)})`;
     default:
-      return JSON.stringify(x);
+      try {
+        return renderRichPlainText(x[x.type].text);
+      } catch (err) {
+        return `<WIP ${x.type}>` + JSON.stringify(x[x.type], null, 2);
+      }
   }
 };
 
@@ -78,9 +83,44 @@ const listFormatter = (list: PaginatedList | APISingularObject) => {
   return list.results.map(formatListItem).join("\n");
 };
 
+type BlockWithChildren = Block & {
+  children: APIResponseError;
+};
+
+// @todo Maybe all child fetching should happen here? The children might be paginated, so we need to build up the list over N requests.
+// @todo Where is the exhaustive list of block types?
+const plainTextFormatter = (x: BlockWithChildren) => {
+  if (x.object !== "block") {
+    console.error("Only block objects can use the plain text formatter.");
+    return;
+  }
+
+  if (!x.has_children) {
+    console.error("Block has no children to render");
+    return;
+  }
+
+  if (!x.children) {
+    console.error("No children were found on this block. Did you pass the --with_children flag?");
+    return;
+  }
+
+  const children = x.children;
+  let result = "";
+
+  // @ts-ignore @todo Yeah, this is currently a list with pagination info
+  for (const c of children.results) {
+    result += renderPropertyPlainText(c);
+    result += "\n";
+  }
+
+  return result;
+};
+
 const serializers = {
   json: (x) => JSON.stringify(x, null, 2),
   list: listFormatter,
+  plain_text: plainTextFormatter,
 };
 
 const main = async () => {
@@ -145,12 +185,22 @@ const main = async () => {
         "get <uuid>",
         "Get a specific block",
         (yargs) => {
+          yargs.options({
+            with_children: { type: "boolean", default: true },
+          });
           yargs.positional("uuid", { type: "string", demandOption: false });
         },
         (argv) => {
-          return notion.blocks
-            .retrieve({ block_id: argv.uuid as string })
-            .then((x) => console.log(serializers[argv.format as string](x)));
+          return Promise.all([
+            notion.blocks.retrieve({ block_id: argv.uuid as string }),
+            argv.with_children
+              ? notion.blocks.children.list({ block_id: argv.uuid as string })
+              : Promise.resolve(null),
+          ]).then((x) => {
+            const [block, children] = x;
+            console.log(serializers[argv.format as string]({ ...block, children }));
+            return x;
+          });
         },
       );
     })
