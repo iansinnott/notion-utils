@@ -7,9 +7,10 @@ import { Client, LogLevel } from "@notionhq/client";
 import cx from "classnames";
 import { AutocompleteOptions, BaseItem } from "@algolia/autocomplete-core";
 import { Database, Page, PropertyValue, RichText } from "@notionhq/client/build/src/api-types";
-import { SearchResponse } from "@notionhq/client/build/src/api-endpoints";
+import { SearchParameters, SearchResponse } from "@notionhq/client/build/src/api-endpoints";
 import reactStringReplace from "react-string-replace";
 import { Switch } from "@headlessui/react";
+import { RequestParameters } from "@notionhq/client/build/src/Client";
 
 // Oh hai, just a dev logger here
 const log = (...args) => {
@@ -286,13 +287,12 @@ function SearchResultItem({ hit, components, query }) {
 }
 
 class SearchPane extends React.Component<{
-  getClient: () => null | Client;
   state: AppState;
   onReauth?: () => void;
   getSources: ({ query: string }) => any[];
 }> {
   render() {
-    const { getClient, state } = this.props;
+    const { state } = this.props;
     return (
       <div className="SearchPane">
         <Autocomplete
@@ -309,33 +309,58 @@ class SearchPane extends React.Component<{
   }
 }
 
+// Oh yeah, just rebuilding the notion client to get around cors issues
+const notionRequest = (request: RequestParameters) => {
+  return fetch("/api/notion/request", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  }).then((res) => {
+    if (res.status !== 200) {
+      console.warn(res);
+      throw new Error(`notion request failed: ${res.status}`);
+    }
+    return res.json();
+  });
+};
+
+const users = (auth: string) => {
+  return notionRequest({
+    auth,
+    method: "get",
+    path: "users",
+  });
+};
+
+const search = (auth: string, query: SearchParameters) => {
+  return notionRequest({
+    auth,
+    method: "post",
+    path: "search",
+    // @ts-ignore
+    body: query,
+  });
+};
+
 // A component that will display all the keys and values of the state prop
 const DebugInfo = ({ state, status }: { state: AppState; status: string }) => {
   useEffect(() => {
     // @ts-ignore
     window.try1 = () => {
-      return fetch("/api/notion/request", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      return search(state.auth.token, {
+        query: "",
+        sort: {
+          direction: "descending", // Newer first
+          timestamp: "last_edited_time",
         },
-        body: JSON.stringify({
-          token: state.auth.token,
-          request: {
-            method: "post",
-            path: "search",
-            auth: state.auth.token,
-            body: {
-              query: "",
-              sort: {
-                direction: "descending", // Newer first
-                timestamp: "last_edited_time",
-              },
-              start_cursor: undefined,
-            },
-          },
-        }),
+        start_cursor: undefined,
       });
+    };
+    // @ts-ignore
+    window.try2 = () => {
+      return users(state.auth.token);
     };
   }, [state.auth]);
 
@@ -367,54 +392,56 @@ interface AppState {
   };
 }
 
-const initNotion = (token: string) => {
-  // Notion doesn't like relative URLs so just construct a full one
-  const baseUrl = new URL(window.location.toString());
-  baseUrl.pathname = "/api/notion";
-  const url = baseUrl.toString();
+// @note This is not currently used, because Notion was giving us errors when
+// using the next.js proxy and using the notion default baseUrl results in cors
+// errors.
+//
+// const initNotion = (token: string) => {
+//   // Notion doesn't like relative URLs so just construct a full one
+//   const baseUrl = new URL(window.location.toString());
+//   baseUrl.pathname = "/api/notion";
+//   const url = baseUrl.toString();
 
-  log("[init notion] with url", baseUrl);
+//   log("[init notion] with url", baseUrl);
 
-  // Initializing a client
-  const notion = new Client({
-    auth: token,
-    baseUrl: url,
-    logLevel: LogLevel.DEBUG,
-  });
+//   // Initializing a client
+//   const notion = new Client({
+//     auth: token,
+//     // baseUrl: url,
+//     logLevel: LogLevel.DEBUG,
+//   });
 
-  // @ts-ignore
-  window.notion = notion;
+//   // @ts-ignore
+//   window.notion = notion;
 
-  return notion;
-};
+//   return notion;
+// };
 
 // Recursively fetch everything the token has access to. This populates the
 // searchable results. We fetch everything all at once like this so as to
 // avoid hitting the API too often. This does mean we need to re-fetch
 // occasionally though.
-const fetchAll = (client: Client, cursor = undefined): Promise<SearchResponse["results"]> => {
+const fetchAll = (token: string, cursor = undefined): Promise<SearchResponse["results"]> => {
   log("[fetch all]", cursor);
-  return client
-    .search({
-      query: "",
-      sort: {
-        direction: "descending", // Newer first
-        timestamp: "last_edited_time",
-      },
-      start_cursor: cursor,
-    })
-    .then((res) => {
-      // const results = res.results.map((x) => {
-      //   return { ...x, plain_text_title: formatObject(x) };
-      // });
-      if (res.has_more) {
-        return fetchAll(client, res.next_cursor).then((x) => {
-          return [...res.results, ...x];
-        });
-      } else {
-        return res.results;
-      }
-    });
+  return search(token, {
+    query: "",
+    sort: {
+      direction: "descending", // Newer first
+      timestamp: "last_edited_time",
+    },
+    start_cursor: cursor,
+  }).then((res) => {
+    // const results = res.results.map((x) => {
+    //   return { ...x, plain_text_title: formatObject(x) };
+    // });
+    if (res.has_more) {
+      return fetchAll(token, res.next_cursor).then((x) => {
+        return [...res.results, ...x];
+      });
+    } else {
+      return res.results;
+    }
+  });
 };
 
 const FAQ = () => {
@@ -488,7 +515,6 @@ export default function Home() {
   const [status, setStatus] = useState("hydrating");
   const [state, setState] = useState<AppState>(initialState);
   const [err, setErr] = useState(null);
-  const client = useRef<null | Client>(null);
 
   const mergeState = (state: Partial<AppState>) => {
     return setState((x) => ({ ...x, ...state }));
@@ -497,13 +523,7 @@ export default function Home() {
   const hydrate = () =>
     storage.current.getItem("appState").then((x: AppState) => {
       if (!x) return state;
-
       setState(x);
-
-      if (x.auth?.token) {
-        client.current = initNotion(x.auth?.token);
-      }
-
       return x;
     });
 
@@ -514,7 +534,7 @@ export default function Home() {
 
   const refresh = React.useCallback(() => {
     setStatus("loading");
-    return fetchAll(client.current)
+    return fetchAll(state.auth?.token)
       .then((xs) =>
         xs.map((x) => {
           return { ...x, plain_text_title: formatObject(x) };
@@ -522,7 +542,7 @@ export default function Home() {
       )
       .then((results) => mergeState({ results, lastChecked: Date.now() }))
       .finally(() => setStatus("idle"));
-  }, []);
+  }, [state.auth?.token]);
 
   useEffect(() => {
     // @ts-ignore
@@ -533,7 +553,7 @@ export default function Home() {
 
     hydrate()
       .then((x) => {
-        if (x.results.length === 0 && client.current) {
+        if (x.results.length === 0 && state.auth?.token) {
           return refresh();
         }
       })
@@ -552,17 +572,13 @@ export default function Home() {
   useEffect(persist, [state]);
 
   const handleSaveToken = (token: string) => {
-    const notion = initNotion(token);
-
     setStatus("loading");
     setErr(null);
 
     // Try out a request to confirm that the token actually works
-    notion.users
-      .list()
+    users(token)
       .then((res) => {
         mergeState({ auth: { token } });
-        client.current = notion;
         console.log(res);
         return refresh();
       })
@@ -671,7 +687,6 @@ export default function Home() {
                 },
               ]}
               state={state}
-              getClient={() => client.current}
               onReauth={deauthorize}
             />
             <DebugInfo state={state} status={status} />

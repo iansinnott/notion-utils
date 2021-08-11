@@ -1,32 +1,35 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Client, LogLevel } from "@notionhq/client";
-import { parseBody } from "next/dist/next-server/server/api-utils";
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).send({ message: "Method not allowed " + req.method });
-  }
+  return new Promise<void>((resolve) => {
+    if (req.method !== "POST") {
+      res.status(405).send({ message: "Method not allowed " + req.method });
+      return resolve();
+    }
 
-  if (req.headers["content-type"] !== "application/json") {
-    return res.status(400).send({ message: "Content-Type must be application/json." });
-  }
+    if (req.headers["content-type"] !== "application/json") {
+      res.status(400).send({ message: "Content-Type must be application/json." });
+      return resolve();
+    }
 
-  if (!req.body.token) {
-    return res.status(400).send({ message: "No token provided." });
-  }
+    if (!req.body.auth) {
+      res.status(400).send({ message: "No token provided." });
+      return resolve();
+    }
 
-  const notion = new Client({
-    auth: req.body.token,
-    logLevel: LogLevel.DEBUG,
+    // @note Notion can be initialized without a token. In this case, the token will be provided to the `request` method directly.
+    const notion = new Client({
+      logLevel: LogLevel.DEBUG,
+    });
+
+    console.log("[notion request]", req.body);
+
+    notion
+      .request(req.body)
+      .then((result) => res.send(result))
+      .catch((err) => res.status(err.status || 400).send(err))
+      .finally(() => resolve());
   });
-
-  console.log(req.body.request);
-
-  notion
-    .request(req.body.request)
-    .then((result) => res.send(result))
-    .catch((err) => res.status(err.status || 400).send(err));
-
-  // res.status(200).json({ name: "John Doe", query: req.query, body: req.body });
 }
