@@ -8,7 +8,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 // Create proxy instance outside of request handler function to avoid unnecessary re-creation
 const apiProxy = createProxyMiddleware({
   // target: "https://api.notion.com",
-  target: "https://www.chineseexamples.com", // @note This probably seems out of context, but its just a server I can see the logs for. Useful for inspecting what requests are coming out of the proxy.
+  target: "https://httpbin.org/anything", // @note For debugging
   changeOrigin: true,
   pathRewrite: { [`^/api/notion`]: "" },
   secure: true,
