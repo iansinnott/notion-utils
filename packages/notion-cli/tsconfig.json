@@ -1,18 +1,14 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": false,
-    "forceConsistentCasingInFileNames": true,
+    "target": "ES2015",
+    "module": "CommonJS",
+    "strict": true,
     "esModuleInterop": true,
-    "module": "esnext",
     "moduleResolution": "node",
+    "allowJs": true,
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "resolveJsonModule": true,
     "isolatedModules": true,

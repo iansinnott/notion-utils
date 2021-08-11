@@ -30,6 +30,12 @@
     "url": "https://github.com/iansinnott/notion-utils/issues"
   },
   "devDependencies": {
+    "ts-node": "^10.2.0",
     "typescript": "^4.3.5"
+  },
+  "dependencies": {
+    "@notionhq/client": "^0.2.4",
+    "@types/yargs": "^17.0.2",
+    "yargs": "^17.1.0"
   }
 }
