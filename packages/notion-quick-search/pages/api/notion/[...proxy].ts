@@ -9,9 +9,10 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 const apiProxy = createProxyMiddleware({
   target: "https://api.notion.com",
   // target: "https://httpbin.org/anything", // @note For debugging
-  changeOrigin: false,
-  pathRewrite: { [`^/api/notion`]: "" },
+  changeOrigin: true, // We get UNABLE_TO_VERIFY_LEAF_SIGNATURE if this is false
   secure: true,
+  xfwd: false,
+  pathRewrite: { [`^/api/notion`]: "" },
   logLevel: "debug",
 });
 
