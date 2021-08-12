@@ -15,7 +15,7 @@ import {
   User,
 } from "@notionhq/client/build/src/api-types";
 import assert from "assert";
-import { listRenderer, plainTextRenderer } from "./renderer";
+import { listRenderer, plainTextRenderer } from "@iansinnott/notion-renderers";
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 
