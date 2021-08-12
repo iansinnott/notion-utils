@@ -1,7 +1,7 @@
 {
-  "name": "notion-cli",
+  "name": "@iansinnott/notion-cli",
   "version": "0.0.0",
-  "description": "> TODO: description",
+  "description": "A CLI for the official Notion API",
   "keywords": [
     "notion",
     "cli",
@@ -11,20 +11,25 @@
   "author": "Ian Sinnott <ian@iansinnott.com>",
   "homepage": "https://github.com/iansinnott/notion-utils#readme",
   "license": "MIT",
-  "main": "lib/notion-cli.js",
+  "main": "dist/notion-cli.js",
+  "bin": {
+    "notion-cli": "dist/notion-cli.js"
+  },
   "directories": {
-    "lib": "lib",
+    "lib": "src",
     "test": "__tests__"
   },
   "files": [
-    "lib"
+    "src"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/iansinnott/notion-utils.git"
   },
   "scripts": {
-    "test": "echo \"Error: run tests from root\" && exit 1"
+    "test": "echo \"Error: run tests from root\" && exit 1",
+    "build": "tsc",
+    "postbuild": "chmod +x ./dist/notion-cli.js"
   },
   "bugs": {
     "url": "https://github.com/iansinnott/notion-utils/issues"
