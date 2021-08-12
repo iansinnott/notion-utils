@@ -80,11 +80,12 @@ export const listRenderer = (list: PaginatedList | APISingularObject) => {
 };
 
 type BlockWithChildren = Block & {
-  children: APIResponseError;
+  children: null | BlockWithChildren[];
 };
 
 // @todo Maybe all child fetching should happen here? The children might be paginated, so we need to build up the list over N requests.
 // @todo Where is the exhaustive list of block types?
+// @todo You know what would make a pure function (just ignore those console calls...) like this better? Tests!
 export const plainTextRenderer = (x: BlockWithChildren) => {
   if (x.object !== "block") {
     console.error("Only block objects can use the plain text formatter.");
@@ -104,10 +105,19 @@ export const plainTextRenderer = (x: BlockWithChildren) => {
   const children = x.children;
   let result = "";
 
-  // @ts-ignore @todo Yeah, this is currently a list with pagination info
-  for (const c of children.results) {
-    result += renderPropertyPlainText(c);
-    result += "\n";
+  for (const c of children) {
+    let block: string | undefined;
+
+    if (c.has_children) {
+      block = plainTextRenderer(c); // Rescurse!
+    } else {
+      block = renderPropertyPlainText(c);
+    }
+
+    if (block) {
+      result += block;
+      result += "\n";
+    }
   }
 
   return result;

@@ -29,7 +29,7 @@ const getClient = ({ verbose }: { verbose?: any }) =>
 const serializers = {
   json: (x) => JSON.stringify(x, null, 2),
   list: listRenderer,
-  plain_text: plainTextRenderer,
+  plain_text: (x) => plainTextRenderer({ ...x, children: x.children.results }),
 };
 
 const argv = yargs(process.argv.slice(2))
