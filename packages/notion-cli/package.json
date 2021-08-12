@@ -45,5 +45,6 @@
     "@notionhq/client": "^0.2.4",
     "@types/yargs": "^17.0.2",
     "yargs": "^17.1.0"
-  }
+  },
+  "gitHead": "08e782cbc00a9ce64eed2a9d4509af4bc9552e0c"
 }
