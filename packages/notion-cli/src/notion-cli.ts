@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import yargs from "yargs/yargs";
-import { hideBin } from "yargs/helpers";
 import { APIResponseError, Client, LogLevel } from "@notionhq/client";
 import {
   APISingularObject,
@@ -123,41 +122,53 @@ const serializers = {
   plain_text: plainTextFormatter,
 };
 
-const main = async () => {
-  const argv = await yargs(process.argv.slice(2))
-    .command(
-      "search",
-      "Search objects accessible to your token",
-      (yargs) => {
-        yargs.options({
-          query: { type: "string", default: "" },
-          sort_direction: { choices: ["ascending", "descending"], default: "descending" },
-          sort_timestamp: { choices: ["last_edited_time"], default: "last_edited_time" },
-          start_cursor: { type: "string" },
-        });
-      },
-      (argv) => {
-        // We ignore sort_timestamp for now since its unused in the api
-        const { query, sort_direction, sort_timestamp, start_cursor } = argv;
-        return notion
-          .search({
-            query: query as string,
-            sort: {
-              direction: sort_direction as "ascending" | "descending",
-              timestamp: "last_edited_time",
-            },
-            start_cursor: start_cursor as string | undefined,
-          })
+yargs(process.argv.slice(2))
+  // search
+  .command(
+    "search <query>",
+    "Search objects accessible to your token. Leave query empty to return everything.\nResults are paginated. Use the --start_cursor flag to fetch more.",
+    (yargs) => {
+      yargs.positional("positional_query", {
+        type: "string",
+        conflicts: ["query"],
+      });
+      yargs.options({
+        query: { type: "string", default: "" },
+        sort_direction: { choices: ["ascending", "descending"], default: "descending" },
+        sort_timestamp: { choices: ["last_edited_time"], default: "last_edited_time" },
+        start_cursor: { type: "string" },
+      });
+    },
+    (argv) => {
+      // We ignore sort_timestamp for now since its unused in the api
+      const { query, positional_query, sort_direction, sort_timestamp, start_cursor } = argv;
+      return notion
+        .search({
+          query: (positional_query || query) as string,
+          sort: {
+            direction: sort_direction as "ascending" | "descending",
+            timestamp: "last_edited_time",
+          },
+          start_cursor: start_cursor as string | undefined,
+        })
 
-          .then((x) => console.log(serializers[argv.format as string](x)));
-      },
-    )
-    .command("databases", "Interact with database objects", (yargs) => {
+        .then((x) => console.log(serializers[argv.format as string](x)));
+    },
+  )
+
+  // databases
+  .command(
+    "databases",
+    "Interact with individual databases. If you want to list databases use the `search` command.",
+    (yargs) => {
       return yargs.command(
         "get <uuid>",
         "Get a specific database",
         (yargs) => {
-          yargs.positional("uuid", { type: "string", demandOption: false });
+          yargs.positional("uuid", {
+            type: "string",
+            demandOption: "You must provide a notion uuid.",
+          });
         },
         (argv) => {
           return notion.databases
@@ -165,13 +176,22 @@ const main = async () => {
             .then((x) => console.log(serializers[argv.format as string](x)));
         },
       );
-    })
-    .command("pages", "Interact with page objects", (yargs) => {
+    },
+  )
+
+  // pages
+  .command(
+    "pages",
+    "Interact with individual pages. If you want to list pages use the `search` command.",
+    (yargs) => {
       return yargs.command(
         "get <uuid>",
         "Get a specific page",
         (yargs) => {
-          yargs.positional("uuid", { type: "string", demandOption: false });
+          yargs.positional("uuid", {
+            type: "string",
+            demandOption: "You must provide a notion uuid.",
+          });
         },
         (argv) => {
           return notion.pages
@@ -179,71 +199,84 @@ const main = async () => {
             .then((x) => console.log(serializers[argv.format as string](x)));
         },
       );
-    })
-    .command("blocks", "Interact with block objects", (yargs) => {
-      return yargs.command(
+    },
+  )
+
+  // blocks
+  .command("blocks", "Interact with block objects", (yargs) => {
+    return yargs.command(
+      "get <uuid>",
+      "Get a specific block",
+      (yargs) => {
+        yargs.options({
+          with_children: { type: "boolean", default: true },
+        });
+        yargs.positional("uuid", {
+          type: "string",
+          demandOption: "You must provide a notion uuid.",
+        });
+      },
+      (argv) => {
+        return Promise.all([
+          notion.blocks.retrieve({ block_id: argv.uuid as string }),
+          argv.with_children
+            ? notion.blocks.children.list({ block_id: argv.uuid as string })
+            : Promise.resolve(null),
+        ]).then((x) => {
+          const [block, children] = x;
+          console.log(serializers[argv.format as string]({ ...block, children }));
+          return x;
+        });
+      },
+    );
+  })
+
+  // users
+  .command("users", "Interact with user objects", (yargs) => {
+    return yargs
+      .command(
         "get <uuid>",
-        "Get a specific block",
+        "Get a specific user",
         (yargs) => {
-          yargs.options({
-            with_children: { type: "boolean", default: true },
+          yargs.positional("uuid", {
+            type: "string",
+            demandOption: "You must provide a notion uuid.",
           });
-          yargs.positional("uuid", { type: "string", demandOption: false });
         },
         (argv) => {
-          return Promise.all([
-            notion.blocks.retrieve({ block_id: argv.uuid as string }),
-            argv.with_children
-              ? notion.blocks.children.list({ block_id: argv.uuid as string })
-              : Promise.resolve(null),
-          ]).then((x) => {
-            const [block, children] = x;
-            console.log(serializers[argv.format as string]({ ...block, children }));
-            return x;
-          });
-        },
-      );
-    })
-    .command("users", "Interact with user objects", (yargs) => {
-      return yargs
-        .command(
-          "get <uuid>",
-          "Get a specific user",
-          (yargs) => {
-            yargs.positional("uuid", { type: "string", demandOption: false });
-          },
-          (argv) => {
-            return notion.users
-              .retrieve({ user_id: argv.uuid as string })
-              .then((x) => console.log(serializers[argv.format as string](x)));
-          },
-        )
-        .command("list", "List all users", {}, (argv) => {
           return notion.users
-            .list()
+            .retrieve({ user_id: argv.uuid as string })
             .then((x) => console.log(serializers[argv.format as string](x)));
-        });
-    })
-    .command("status", "Check the status of your environment.", () => {
-      console.log("checking...");
-    })
-    .options({
-      format: { type: "string", alias: "f", default: "json" },
-      // a: { type: "boolean", default: false },
-      // b: { type: "string", demandOption: true },
-      // c: { type: "number", alias: "ships" },
-      // e: { type: "count" },
-      // f: { choices: ["1", "2", "3"] },
-    })
-    .parseAsync()
-    .catch((err) => {
-      console.error(err.message);
-      process.exit(99);
-    });
-};
+        },
+      )
+      .command("list", "List all users", {}, (argv) => {
+        return notion.users.list().then((x) => console.log(serializers[argv.format as string](x)));
+      })
+      .demandCommand()
+      .help();
+  })
 
-if (require.main === module) {
-  main();
-}
+  // Unrelated to the official API. Just make sure we can get the token.
+  .command("status", "Check the status of your environment.", {}, () => {
+    if (NOTION_TOKEN) {
+      console.error(
+        "$NOTION_TOKEN found. To validate that it can access the API you can run any command. For example: `notion-cli users list`",
+      );
+    } else {
+      console.error(
+        "$NOTION_TOKEN was not set. Please ensure that the NOTION_TOKEN environment variable is set.",
+      );
+      process.exitCode = 99;
+    }
+  })
+
+  // Global options
+  .options({
+    format: { choices: Object.keys(serializers), alias: "f", default: "json" },
+  })
+
+  // Default to help
+  .demandCommand()
+  .help().argv;
 
 export {};

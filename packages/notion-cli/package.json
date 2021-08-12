@@ -28,6 +28,7 @@
   },
   "scripts": {
     "test": "echo \"Error: run tests from root\" && exit 1",
+    "watch": "tsc -w",
     "build": "tsc",
     "postbuild": "chmod +x ./dist/notion-cli.js"
   },
