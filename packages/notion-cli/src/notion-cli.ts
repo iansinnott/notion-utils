@@ -32,13 +32,15 @@ const renderRichPlainText = (xs: RichText[]) => {
 // Given a property value render it as plain text. Properties are found on database rows.
 const renderPropertyPlainText = (x: PropertyValue | Block) => {
   switch (x.type) {
-    // @todo Below will work in many cases. Not yet aware of exceptions, although there are bound to be
+    case "title":
+      return renderRichPlainText(x[x.type]);
     case "child_page":
       return `[${x.child_page.title}](${NotionRenderer.getLocalNotionUrl(x)})`;
     default:
       try {
         return renderRichPlainText(x[x.type].text);
       } catch (err) {
+        console.error(err);
         return `<WIP ${x.type}>` + JSON.stringify(x[x.type], null, 2);
       }
   }
