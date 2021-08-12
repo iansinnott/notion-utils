@@ -384,6 +384,31 @@ const argv = yargs(process.argv.slice(2))
           });
         },
       )
+      .command(
+        "children <uuid>",
+        "Get a specific block",
+        (yargs) => {
+          yargs.alias("help", "h");
+          yargs.options({
+            start_cursor: { type: "string" },
+          });
+          yargs.positional("uuid", {
+            type: "string",
+            demandOption: "You must provide a notion uuid.",
+          });
+        },
+        (argv) => {
+          return getClient({ verbose: argv.verbose })
+            .blocks.children.list({
+              block_id: argv.uuid as string,
+              start_cursor: argv.start_cursor as string | undefined,
+            })
+            .then((x) => {
+              console.log(serializers[argv.format as string](x));
+              return x;
+            });
+        },
+      )
       .demandCommand()
       .help();
   })
