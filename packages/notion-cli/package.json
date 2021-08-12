@@ -9,7 +9,7 @@
     "line"
   ],
   "author": "Ian Sinnott <ian@iansinnott.com>",
-  "homepage": "https://github.com/iansinnott/notion-utils#readme",
+  "homepage": "https://github.com/iansinnott/notion-utils/tree/master/packages/notion-cli",
   "license": "MIT",
   "main": "dist/notion-cli.js",
   "bin": {

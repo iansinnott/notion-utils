@@ -4,6 +4,7 @@
   "private": true,
   "repository": "git@github.com:iansinnott/notion-utils.git",
   "author": "Ian Sinnott <ian@iansinnott.com>",
+  "homepage": "https://github.com/iansinnott/notion-utils/tree/master/packages/notion-quick-search",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
