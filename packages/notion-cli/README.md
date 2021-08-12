@@ -10,6 +10,33 @@ Provide a light wrapper around the Notion SDK / API. If the API can do it it sho
 
 That being said, its still a work in progress. Not all endpoints are supported. Namely, as of this commit, functionality is mostly concerned with reading and transforming data, rather than writing data.
 
+## Install
+
+You first need an integration token set in your environment as `NOTION_TOKEN=secret_...`. 
+
+```sh
+yarn global add @iansinnott/notion-cli
+```
+
+Or using NPM:
+
+```sh
+yarn global add @iansinnott/notion-cli
+```
+
+Or call directly with NPX:
+
+```sh
+npx @iansinnott/notion-cli --help
+```
+
+Specify the token in-line:
+
+```sh
+NOTION_TOKEN='secret_abc' npx @iansinnott/notion-cli --help
+```
+
+
 ## Examples
 
 ```sh
