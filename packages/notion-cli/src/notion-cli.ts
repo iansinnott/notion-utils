@@ -123,15 +123,13 @@ const serializers = {
 };
 
 yargs(process.argv.slice(2))
+  .alias("help", "h")
   // search
   .command(
-    "search <query>",
+    "search",
     "Search objects accessible to your token. Leave query empty to return everything.\nResults are paginated. Use the --start_cursor flag to fetch more.",
     (yargs) => {
-      yargs.positional("positional_query", {
-        type: "string",
-        conflicts: ["query"],
-      });
+      yargs.alias("help", "h");
       yargs.options({
         query: { type: "string", default: "" },
         sort_direction: { choices: ["ascending", "descending"], default: "descending" },
@@ -141,10 +139,11 @@ yargs(process.argv.slice(2))
     },
     (argv) => {
       // We ignore sort_timestamp for now since its unused in the api
-      const { query, positional_query, sort_direction, sort_timestamp, start_cursor } = argv;
+      const { query, sort_direction, sort_timestamp, start_cursor } = argv;
+
       return notion
         .search({
-          query: (positional_query || query) as string,
+          query: query as string,
           sort: {
             direction: sort_direction as "ascending" | "descending",
             timestamp: "last_edited_time",
@@ -161,21 +160,25 @@ yargs(process.argv.slice(2))
     "databases",
     "Interact with individual databases. If you want to list databases use the `search` command.",
     (yargs) => {
-      return yargs.command(
-        "get <uuid>",
-        "Get a specific database",
-        (yargs) => {
-          yargs.positional("uuid", {
-            type: "string",
-            demandOption: "You must provide a notion uuid.",
-          });
-        },
-        (argv) => {
-          return notion.databases
-            .retrieve({ database_id: argv.uuid as string })
-            .then((x) => console.log(serializers[argv.format as string](x)));
-        },
-      );
+      yargs.alias("help", "h");
+      return yargs
+        .command(
+          "get <uuid>",
+          "Get a specific database",
+          (yargs) => {
+            yargs.positional("uuid", {
+              type: "string",
+              demandOption: "You must provide a notion uuid.",
+            });
+          },
+          (argv) => {
+            return notion.databases
+              .retrieve({ database_id: argv.uuid as string })
+              .then((x) => console.log(serializers[argv.format as string](x)));
+          },
+        )
+        .demandCommand()
+        .help();
     },
   )
 
@@ -184,51 +187,59 @@ yargs(process.argv.slice(2))
     "pages",
     "Interact with individual pages. If you want to list pages use the `search` command.",
     (yargs) => {
-      return yargs.command(
+      yargs.alias("help", "h");
+      return yargs
+        .command(
+          "get <uuid>",
+          "Get a specific page",
+          (yargs) => {
+            yargs.positional("uuid", {
+              type: "string",
+              demandOption: "You must provide a notion uuid.",
+            });
+          },
+          (argv) => {
+            return notion.pages
+              .retrieve({ page_id: argv.uuid as string })
+              .then((x) => console.log(serializers[argv.format as string](x)));
+          },
+        )
+        .demandCommand()
+        .help();
+    },
+  )
+
+  // blocks
+  .command("blocks", "Interact with block objects", (yargs) => {
+    return yargs
+      .command(
         "get <uuid>",
-        "Get a specific page",
+        "Get a specific block",
         (yargs) => {
+          yargs.alias("help", "h");
+          yargs.options({
+            with_children: { type: "boolean", default: true },
+          });
           yargs.positional("uuid", {
             type: "string",
             demandOption: "You must provide a notion uuid.",
           });
         },
         (argv) => {
-          return notion.pages
-            .retrieve({ page_id: argv.uuid as string })
-            .then((x) => console.log(serializers[argv.format as string](x)));
+          return Promise.all([
+            notion.blocks.retrieve({ block_id: argv.uuid as string }),
+            argv.with_children
+              ? notion.blocks.children.list({ block_id: argv.uuid as string })
+              : Promise.resolve(null),
+          ]).then((x) => {
+            const [block, children] = x;
+            console.log(serializers[argv.format as string]({ ...block, children }));
+            return x;
+          });
         },
-      );
-    },
-  )
-
-  // blocks
-  .command("blocks", "Interact with block objects", (yargs) => {
-    return yargs.command(
-      "get <uuid>",
-      "Get a specific block",
-      (yargs) => {
-        yargs.options({
-          with_children: { type: "boolean", default: true },
-        });
-        yargs.positional("uuid", {
-          type: "string",
-          demandOption: "You must provide a notion uuid.",
-        });
-      },
-      (argv) => {
-        return Promise.all([
-          notion.blocks.retrieve({ block_id: argv.uuid as string }),
-          argv.with_children
-            ? notion.blocks.children.list({ block_id: argv.uuid as string })
-            : Promise.resolve(null),
-        ]).then((x) => {
-          const [block, children] = x;
-          console.log(serializers[argv.format as string]({ ...block, children }));
-          return x;
-        });
-      },
-    );
+      )
+      .demandCommand()
+      .help();
   })
 
   // users
@@ -238,6 +249,7 @@ yargs(process.argv.slice(2))
         "get <uuid>",
         "Get a specific user",
         (yargs) => {
+          yargs.alias("help", "h");
           yargs.positional("uuid", {
             type: "string",
             demandOption: "You must provide a notion uuid.",
