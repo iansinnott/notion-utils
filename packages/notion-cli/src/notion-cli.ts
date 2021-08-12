@@ -5,13 +5,16 @@ import {
   APISingularObject,
   Block,
   Database,
+  Filter,
   Page,
   PaginatedList,
   PropertyValue,
   RichText,
   SearchFilter,
+  Sort,
   User,
 } from "@notionhq/client/build/src/api-types";
+import assert from "assert";
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 
@@ -25,6 +28,7 @@ const getClient = ({ verbose }: { verbose?: any }) =>
 // For all the monorepo we've got going there's really a lot of duplicated code...
 //
 const renderRichPlainText = (xs: RichText[]) => {
+  assert(xs && xs.map, "renderRichPlainText was not passed a map. " + xs);
   return xs
     .map((x) => x.plain_text)
     .filter(Boolean)
@@ -38,6 +42,9 @@ const renderPropertyPlainText = (x: PropertyValue | Block) => {
       return renderRichPlainText(x[x.type]);
     case "child_page":
       return `[${x.child_page.title}](${NotionRenderer.getLocalNotionUrl(x)})`;
+    case "unsupported":
+      console.error(`[warn] Omitting unsupported block : ${x.id}`);
+      return "";
     default:
       try {
         return renderRichPlainText(x[x.type].text);
@@ -198,35 +205,68 @@ const argv = yargs(process.argv.slice(2))
             });
             yargs.options({
               start_cursor: { type: "string" },
-              filter: { type: "string" },
-              sort: { type: "string" },
+              // Both of these options are JSON, but i'm not sure of a more clean way to pass them as such so its just a string.
+              filter: {
+                type: "string",
+                description: `JSON filter object. Example, only return databases: \`--filter '{"property":"object","value":"database"}'\``,
+              },
+              sort: {
+                type: "array",
+                default: ['{"timestamp":"last_edited_time","direction":"descending"}'],
+                description:
+                  'Stringified JSON sort object. Can be specified multiple times. Example: `--sort \'{"timestamp":"created_time","direction":"ascending"}\'`',
+              },
             });
           },
           (argv) => {
-            const { query, start_cursor } = argv;
-            let sort;
-            let filter;
+            // We ignore sort_timestamp for now since its unused in the api
+            const { start_cursor } = argv;
+            let { sort, filter } = argv;
 
             try {
-              if (argv.sort) {
-                sort = JSON.parse(argv.sort as string);
+              if (sort) {
+                sort = (sort as string[]).map((x) => JSON.parse(x));
               }
-              if (argv.filter) {
-                filter = JSON.parse(argv.filter as string);
+              if (filter) {
+                filter = JSON.parse(filter as string);
               }
             } catch (err) {
-              console.error("Invalid");
               console.error(err);
               return;
             }
 
+            // @note As of 2021-08-12 the notion api seems to have a bug. Sorts
+            // don't have the intended effect. Maybe my formatting is off? If so
+            // I wish they would tell me. In hte example below toggling between
+            // `ascending` and `descending` does nothing.
+            /*
+               curl -X POST 'https://api.notion.com/v1/databases/d99bb57e-67b5-4c96-a7c9-60c05d28ed52/query' \
+                    -H 'Authorization: Bearer '"$NOTION_TOKEN"'' \
+                    -H 'Notion-Version: 2021-07-27' \
+                    -H "Content-Type: application/json" \
+                    --data '{
+                      "sorts": [
+                        {
+                          "timestamp": "created_time",
+                          "direction": "descending"
+                        }
+                      ]
+                    }'
+            */
+
+            const payload = {
+              database_id: argv.uuid as string,
+              start_cursor: start_cursor as string | undefined,
+              sorts: sort as Sort[],
+              filter: filter as Filter,
+            };
+
+            if (argv.verbose) {
+              console.error("[notion payload]", payload);
+            }
+
             return getClient({ verbose: argv.verbose })
-              .databases.query({
-                database_id: argv.uuid as string,
-                start_cursor: start_cursor as string | undefined,
-                sorts: sort,
-                filter: filter,
-              })
+              .databases.query(payload)
               .then((x) => console.log(serializers[argv.format as string](x)));
           },
         )
