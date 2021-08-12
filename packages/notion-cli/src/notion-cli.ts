@@ -9,16 +9,18 @@ import {
   PaginatedList,
   PropertyValue,
   RichText,
+  SearchFilter,
   User,
 } from "@notionhq/client/build/src/api-types";
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 
-const notion = new Client({
-  auth: NOTION_TOKEN,
-  logLevel: process.env.NODE_ENV === "development" ? LogLevel.DEBUG : LogLevel.INFO,
-  logger: console.error,
-});
+const getClient = ({ verbose }: { verbose?: any }) =>
+  new Client({
+    auth: NOTION_TOKEN,
+    logLevel: verbose ? LogLevel.DEBUG : LogLevel.WARN,
+    logger: console.error,
+  });
 
 // For all the monorepo we've got going there's really a lot of duplicated code...
 //
@@ -124,7 +126,7 @@ const serializers = {
   plain_text: plainTextFormatter,
 };
 
-yargs(process.argv.slice(2))
+const argv = yargs(process.argv.slice(2))
   .alias("help", "h")
   // search
   .command(
@@ -134,22 +136,44 @@ yargs(process.argv.slice(2))
       yargs.alias("help", "h");
       yargs.options({
         query: { type: "string", default: "" },
-        sort_direction: { choices: ["ascending", "descending"], default: "descending" },
-        sort_timestamp: { choices: ["last_edited_time"], default: "last_edited_time" },
         start_cursor: { type: "string" },
+
+        // Both of these options are JSON, but i'm not sure of a more clean way to pass them as such so its just a string.
+        filter: {
+          type: "string",
+          description: `JSON filter object. Example, only return databases: \`--filter '{"property":"object","value":"database"}'\``,
+        },
+        sort: {
+          type: "array",
+          default: ['{"timestamp":"last_edited_time","direction":"descending"}'],
+          description:
+            'Stringified JSON sort object. Can be specified multiple times. Example: `--sort \'{"timestamp":"created_time","direction":"ascending"}\'`',
+        },
       });
     },
     (argv) => {
       // We ignore sort_timestamp for now since its unused in the api
-      const { query, sort_direction, sort_timestamp, start_cursor } = argv;
+      const { query, start_cursor } = argv;
+      let { sort, filter } = argv;
 
-      return notion
+      try {
+        if (sort) {
+          sort = (sort as string[]).map((x) => JSON.parse(x));
+        }
+        if (filter) {
+          filter = JSON.parse(filter as string);
+        }
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+
+      return getClient({ verbose: argv.verbose })
         .search({
           query: query as string,
-          sort: {
-            direction: sort_direction as "ascending" | "descending",
-            timestamp: "last_edited_time",
-          },
+          // @ts-ignore
+          sort: sort[0], // @note Unlike the databaase query, the search query uses a single sort object
+          filter: filter as SearchFilter | undefined,
           start_cursor: start_cursor as string | undefined,
         })
 
@@ -165,6 +189,66 @@ yargs(process.argv.slice(2))
       yargs.alias("help", "h");
       return yargs
         .command(
+          "query <uuid>",
+          "Query a specific database",
+          (yargs) => {
+            yargs.positional("uuid", {
+              type: "string",
+              demandOption: "You must provide a notion uuid.",
+            });
+            yargs.options({
+              start_cursor: { type: "string" },
+              filter: { type: "string" },
+              sort: { type: "string" },
+            });
+          },
+          (argv) => {
+            const { query, start_cursor } = argv;
+            let sort;
+            let filter;
+
+            try {
+              if (argv.sort) {
+                sort = JSON.parse(argv.sort as string);
+              }
+              if (argv.filter) {
+                filter = JSON.parse(argv.filter as string);
+              }
+            } catch (err) {
+              console.error("Invalid");
+              console.error(err);
+              return;
+            }
+
+            return getClient({ verbose: argv.verbose })
+              .databases.query({
+                database_id: argv.uuid as string,
+                start_cursor: start_cursor as string | undefined,
+                sorts: sort,
+                filter: filter,
+              })
+              .then((x) => console.log(serializers[argv.format as string](x)));
+          },
+        )
+        .command(
+          "list",
+          "List all databases. Results may be paginated.",
+          (yargs) => {
+            yargs.options({
+              start_cursor: { type: "string" },
+            });
+          },
+          (argv) => {
+            return getClient({ verbose: argv.verbose })
+              .search({
+                query: "",
+                filter: { property: "object", value: "database" },
+                start_cursor: argv.start_cursor as string | undefined,
+              })
+              .then((x) => console.log(serializers[argv.format as string](x)));
+          },
+        )
+        .command(
           "get <uuid>",
           "Get a specific database",
           (yargs) => {
@@ -174,8 +258,8 @@ yargs(process.argv.slice(2))
             });
           },
           (argv) => {
-            return notion.databases
-              .retrieve({ database_id: argv.uuid as string })
+            return getClient({ verbose: argv.verbose })
+              .databases.retrieve({ database_id: argv.uuid as string })
               .then((x) => console.log(serializers[argv.format as string](x)));
           },
         )
@@ -192,6 +276,24 @@ yargs(process.argv.slice(2))
       yargs.alias("help", "h");
       return yargs
         .command(
+          "list",
+          "List all databases. Results may be paginated.",
+          (yargs) => {
+            yargs.options({
+              start_cursor: { type: "string" },
+            });
+          },
+          (argv) => {
+            return getClient({ verbose: argv.verbose })
+              .search({
+                query: "",
+                filter: { property: "object", value: "page" },
+                start_cursor: argv.start_cursor as string | undefined,
+              })
+              .then((x) => console.log(serializers[argv.format as string](x)));
+          },
+        )
+        .command(
           "get <uuid>",
           "Get a specific page",
           (yargs) => {
@@ -201,8 +303,8 @@ yargs(process.argv.slice(2))
             });
           },
           (argv) => {
-            return notion.pages
-              .retrieve({ page_id: argv.uuid as string })
+            return getClient({ verbose: argv.verbose })
+              .pages.retrieve({ page_id: argv.uuid as string })
               .then((x) => console.log(serializers[argv.format as string](x)));
           },
         )
@@ -220,7 +322,7 @@ yargs(process.argv.slice(2))
         (yargs) => {
           yargs.alias("help", "h");
           yargs.options({
-            with_children: { type: "boolean", default: true },
+            with_children: { type: "boolean", default: false },
           });
           yargs.positional("uuid", {
             type: "string",
@@ -229,9 +331,11 @@ yargs(process.argv.slice(2))
         },
         (argv) => {
           return Promise.all([
-            notion.blocks.retrieve({ block_id: argv.uuid as string }),
+            getClient({ verbose: argv.verbose }).blocks.retrieve({ block_id: argv.uuid as string }),
             argv.with_children
-              ? notion.blocks.children.list({ block_id: argv.uuid as string })
+              ? getClient({ verbose: argv.verbose }).blocks.children.list({
+                  block_id: argv.uuid as string,
+                })
               : Promise.resolve(null),
           ]).then((x) => {
             const [block, children] = x;
@@ -258,13 +362,15 @@ yargs(process.argv.slice(2))
           });
         },
         (argv) => {
-          return notion.users
-            .retrieve({ user_id: argv.uuid as string })
+          return getClient({ verbose: argv.verbose })
+            .users.retrieve({ user_id: argv.uuid as string })
             .then((x) => console.log(serializers[argv.format as string](x)));
         },
       )
       .command("list", "List all users", {}, (argv) => {
-        return notion.users.list().then((x) => console.log(serializers[argv.format as string](x)));
+        return getClient({ verbose: argv.verbose })
+          .users.list()
+          .then((x) => console.log(serializers[argv.format as string](x)));
       })
       .demandCommand()
       .help();
@@ -287,10 +393,14 @@ yargs(process.argv.slice(2))
   // Global options
   .options({
     format: { choices: Object.keys(serializers), alias: "f", default: "json" },
+    verbose: { type: "boolean", default: false },
   })
 
   // Default to help
   .demandCommand()
   .help().argv;
+
+// @ts-ignore
+// argv.then(console.log);
 
 export {};
