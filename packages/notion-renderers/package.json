@@ -1,24 +1,29 @@
 {
   "name": "@iansinnott/notion-renderers",
   "version": "0.2.0",
-  "description": "> TODO: description",
+  "description": "Notion Renderers",
   "author": "Ian Sinnott <ian@iansinnott.com>",
   "homepage": "https://github.com/iansinnott/notion-utils#readme",
   "license": "ISC",
   "main": "dist/renderers.js",
   "directories": {
-    "lib": "lib",
+    "src": "src",
+    "dist": "dist",
     "test": "__tests__"
   },
   "files": [
-    "lib"
+    "src",
+    "dist"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/iansinnott/notion-utils.git"
   },
   "scripts": {
-    "test": "echo \"Error: run tests from root\" && exit 1"
+    "test": "echo \"Error: run tests from root\" && exit 1",
+    "watch": "tsc -w",
+    "build": "tsc",
+    "prepublish": "yarn run build"
   },
   "bugs": {
     "url": "https://github.com/iansinnott/notion-utils/issues"
