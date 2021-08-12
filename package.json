@@ -6,6 +6,9 @@
   "repository": "git@github.com:iansinnott/notion-utils.git",
   "author": "Ian Sinnott <ian@iansinnott.com>",
   "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
   "private": true,
   "scripts": {
     "watch": "tsc -w"
