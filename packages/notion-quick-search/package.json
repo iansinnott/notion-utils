@@ -1,6 +1,6 @@
 {
   "name": "notion-quick-search",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "repository": "git@github.com:iansinnott/notion-utils.git",
   "author": "Ian Sinnott <ian@iansinnott.com>",

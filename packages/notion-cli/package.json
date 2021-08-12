@@ -1,6 +1,6 @@
 {
   "name": "@iansinnott/notion-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A CLI for the official Notion API",
   "keywords": [
     "notion",
@@ -42,8 +42,8 @@
     "typescript": "^4.3.5"
   },
   "dependencies": {
+    "@iansinnott/notion-renderers": "^0.3.0",
     "@notionhq/client": "^0.2.4",
-    "@iansinnott/notion-renderers": "*",
     "@types/yargs": "^17.0.2",
     "yargs": "^17.1.0"
   },
