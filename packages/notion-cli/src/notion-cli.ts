@@ -356,7 +356,7 @@ const argv = yargs(process.argv.slice(2))
 
   // Global options
   .options({
-    format: { choices: Object.keys(serializers), alias: "f", default: "json" },
+    format: { choices: Object.keys(serializers), alias: "f", default: "list" },
     verbose: { type: "boolean", default: false },
   })
 

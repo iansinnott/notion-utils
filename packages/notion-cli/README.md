@@ -40,20 +40,26 @@ NOTION_TOKEN='secret_abc' npx @iansinnott/notion-cli --help
 ## Examples
 
 ```sh
-# Default formatting is JSON. List everything
+# Default formatting is a list. List everything (limited to the default page size)
 notion-cli search 
 
-# A more readable list
-notion-cli search --format list
+# The raw json
+notion-cli search --format json
+
+# Use the json for pipe-ing. Here's an example using jq to view all the URLs from the raw search output
+notion-cli search --format json | jq '.results | map(.url)'
+
+# Or store the output for inspection
+notion-cli search --format json > search_results.json
 
 # Find something specific (by title)
 notion-cli search --query "something interesting" 
 
 # List your pages
-notion-cli pages list --format list
+notion-cli pages list
 
 # List your databases
-notion-cli databases list --format list
+notion-cli databases list
 
 # Get a block
 notion-cli blocks get "<block id>"
