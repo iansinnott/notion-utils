@@ -16,6 +16,7 @@ import {
 } from "@notionhq/client/build/src/api-types";
 import assert from "assert";
 import { listRenderer, plainTextRenderer } from "@iansinnott/notion-renderers";
+import * as csv from "./csv";
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 
@@ -84,6 +85,62 @@ const argv = yargs(process.argv.slice(2))
         })
 
         .then((x) => console.log(serializers[argv.format as string](x)));
+    },
+  )
+
+  // CSV
+  .command(
+    "csv",
+    "Interact with individual databases. If you want to list databases use the `search` command.",
+    (yargs) => {
+      yargs.alias("help", "h");
+      return yargs
+        .command(
+          "import",
+          "Import a CSV into an existing Notion database",
+          (yargs) => {
+            yargs.options({
+              input: { type: "string", demandOption: "You must specify a CSV file as the input." },
+              parent_page_id: {
+                type: "string",
+                demandOption:
+                  "The Notion API requires a parent page when creating a database. If you're unsure of the id try `notion-cli pages list`",
+
+                // @todo Go grab and use a page from the search endpoint?
+                description: "The parent page is required in order to create the database.",
+              },
+
+              database_title: {
+                type: "string",
+                description:
+                  "(optional) The title of the database in notion. If omitted the title is assumed to be name of the CSV file.",
+              },
+            });
+          },
+          (argv) => {
+            csv.create(argv);
+          },
+        )
+        .command(
+          "list",
+          "List all databases. Results may be paginated.",
+          (yargs) => {
+            yargs.options({
+              start_cursor: { type: "string" },
+            });
+          },
+          (argv) => {
+            return getClient({ verbose: argv.verbose })
+              .search({
+                query: "",
+                filter: { property: "object", value: "database" },
+                start_cursor: argv.start_cursor as string | undefined,
+              })
+              .then((x) => console.log(serializers[argv.format as string](x)));
+          },
+        )
+        .demandCommand()
+        .help();
     },
   )
 
