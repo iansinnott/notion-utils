@@ -54,7 +54,7 @@ export const create = async (client: Client, argv) => {
     return {
       ...agg,
       [k]: {
-        [title_column === k ? "title" : "rich_text"]: {},
+        [title_column === k ? "title" : "text"]: {},
       },
     };
   }, {});
@@ -106,7 +106,6 @@ async function getAllDatabasePages(client: Client, database_id: string) {
   return pages;
 }
 export const sync = async (client: Client, argv) => {
-  debugger;
   // @ts-ignore
   const data: any[] = await csvParse(path.resolve(argv.input), argv);
   const headers = Object.keys(data[0]); // @note A headers row is required
@@ -140,7 +139,7 @@ export const sync = async (client: Client, argv) => {
   });
 
   const [updates, creations] = partition((x) => {
-    return x[title_field.name] in existingPages;
+    return x[title_field.name] in updateMapping;
   }, data);
 
   const rowToProps = (row: PropertyMap): InputPropertyValueMap => {
@@ -158,9 +157,9 @@ export const sync = async (client: Client, argv) => {
     }, properties);
   };
 
-  inspect(rowToProps(data[0]));
-
+  let soFar = 0;
   for (const batch of splitBatches(creations)) {
+    console.log(`Creating: ${creations.length - soFar} records remaining...`);
     await Promise.all(
       // @ts-ignore
       batch.map((row) => {
@@ -171,21 +170,28 @@ export const sync = async (client: Client, argv) => {
         }
       }),
     );
+    soFar += batch.length;
   }
 
+  soFar = 0;
   for (const batch of splitBatches(updates)) {
+    console.log(`Updating: ${updates.length - soFar} records remaining...`);
     await Promise.all(
       // @ts-ignore
       batch.map((row) => {
-        const { page_id, ...rest } = row;
         if (dry_run) {
           return Promise.resolve(console.log(`[dry run] [update]`, row));
         } else {
+          const page_id = updateMapping[row[title_field.name]];
+          if (!page_id) {
+            console.warn("No page id found for ", row);
+          }
           // @ts-ignore Meh, not worth the trouble ts is giving me.
-          return client.pages.update({ page_id, properties: rowToProps(rest) });
+          return client.pages.update({ page_id, properties: rowToProps(row) });
         }
       }),
     );
+    soFar += batch.length;
   }
 
   console.log(`${creations.length} Created`);
