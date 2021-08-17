@@ -21,7 +21,7 @@ yarn global add @iansinnott/notion-cli
 Or using NPM:
 
 ```sh
-yarn global add @iansinnott/notion-cli
+npm i -g @iansinnott/notion-cli
 ```
 
 Or call directly with NPX:
@@ -78,7 +78,8 @@ Another experimental feature. You can create a database from a CSV file and also
 ```sh
 # Create a database from a CSV file. The database title will be "Book Database"
 # and the column named "title" in the CSV will be used as the title column in
-# Notion
+# Notion. If you're unsure of your page ID you can view your pages using
+# `notion-cli pages list`.
 csv import --input ~/my/books.csv --parent_page_id <page_id> --delimiter "," --title "Book Database" --title_column "title"
 
 # Now import all the data. This is the second step in the two-step process. This
