@@ -13,7 +13,7 @@ import assert from "assert";
 
 // For all the monorepo we've got going there's really a lot of duplicated code...
 //
-const renderRichPlainText = (xs: RichText[]) => {
+export const renderRichPlainText = (xs: RichText[]) => {
   assert(xs && xs.map, "renderRichPlainText was not passed a map. " + xs);
   return xs
     .map((x) => x.plain_text)
@@ -22,7 +22,7 @@ const renderRichPlainText = (xs: RichText[]) => {
 };
 
 // Given a property value render it as plain text. Properties are found on database rows.
-const renderPropertyPlainText = (x: PropertyValue | Block) => {
+export const renderPropertyPlainText = (x: PropertyValue | Block) => {
   switch (x.type) {
     case "title":
       return renderRichPlainText(x[x.type]);

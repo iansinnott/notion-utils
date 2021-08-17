@@ -45,7 +45,9 @@
     "@fast-csv/parse": "^4.3.6",
     "@iansinnott/notion-renderers": "^0.4.0",
     "@notionhq/client": "^0.2.4",
+    "@types/ramda": "^0.27.44",
     "@types/yargs": "^17.0.2",
+    "ramda": "^0.27.1",
     "yargs": "^17.1.0"
   },
   "gitHead": "08e782cbc00a9ce64eed2a9d4509af4bc9552e0c"

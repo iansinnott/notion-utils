@@ -101,6 +101,12 @@ const argv = yargs(process.argv.slice(2))
           (yargs) => {
             yargs.options({
               input: { type: "string", demandOption: "You must specify a CSV file as the input." },
+              delimiter: { type: "string", default: "," },
+              title_column: {
+                text: "string",
+                description:
+                  "Which column should serve as the title? By default it will be the first column.",
+              },
               parent_page_id: {
                 type: "string",
                 demandOption:
@@ -118,25 +124,43 @@ const argv = yargs(process.argv.slice(2))
             });
           },
           (argv) => {
-            csv.create(argv);
+            return csv.create(getClient({ verbose: argv.verbose }), argv).catch((err) => {
+              process.exitCode = 99;
+              console.error(err.message);
+              console.error(
+                "CSV parsing can fail for many reasons. If the error message above is not helpful try checking the plain CSV file to ensure the delimiters and formatting are what you expect.",
+              );
+            });
           },
         )
         .command(
-          "list",
-          "List all databases. Results may be paginated.",
+          "sync",
+          "Sync a CSV file with a database. The CSV and the database must match exactly, so this command is meant to be used with database created using `notion-cli csv import`",
           (yargs) => {
             yargs.options({
-              start_cursor: { type: "string" },
+              input: { type: "string", demandOption: "You must specify a CSV file as the input." },
+              delimiter: { type: "string", default: "," },
+              dry_run: {
+                type: "boolean",
+                default: false,
+                description:
+                  "If passed then no operations will be performed against the notion API.",
+              },
+              database_id: {
+                type: "string",
+                demandOption: "Without a database ID the CLI doesn't know what to sync with.",
+                description: "The ID of the database to sync the file to.",
+              },
             });
           },
           (argv) => {
-            return getClient({ verbose: argv.verbose })
-              .search({
-                query: "",
-                filter: { property: "object", value: "database" },
-                start_cursor: argv.start_cursor as string | undefined,
-              })
-              .then((x) => console.log(serializers[argv.format as string](x)));
+            return csv.sync(getClient({ verbose: argv.verbose }), argv).catch((err) => {
+              process.exitCode = 99;
+              console.error(err.message);
+              console.error(
+                "CSV parsing can fail for many reasons. If the error message above is not helpful try checking the plain CSV file to ensure the delimiters and formatting are what you expect.",
+              );
+            });
           },
         )
         .demandCommand()
