@@ -71,6 +71,23 @@ notion-cli blocks get "<block id>" --with_children
 notion-cli blocks get "<block id>" --with_children --format plain_text
 ```
 
+## CSV to Notion Database
+
+Another experimental feature. You can create a database from a CSV file and also sync CSVs to a database.
+
+```sh
+# Create a database from a CSV file. The database title will be "Book Database"
+# and the column named "title" in the CSV will be used as the title column in
+# Notion
+csv import --input ~/my/books.csv --parent_page_id <page_id> --delimiter "," --title "Book Database" --title_column "title"
+
+# Now import all the data. This is the second step in the two-step process. This
+# may take a while, depending on how many rows your CSV has.
+csv sync --input ~/my/books.csv  --database_id "<database id from last command>" --delimiter ","
+```
+
+Importing a CSV is a two step process, as shown above, However, once the database is created you can run the `csv sync` command idempotently. For example, if you generate a CSV file once a day you can also add a cron job to `csv sync` that file into Notion.
+
 ## Usage
 
 `--help` to get help.
