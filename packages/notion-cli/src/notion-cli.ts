@@ -146,6 +146,15 @@ const argv = yargs(process.argv.slice(2))
                 description:
                   "If passed then no operations will be performed against the notion API.",
               },
+              append_only: {
+                type: "boolean",
+                default: false,
+                description: `Only append new entries to the database, ignore
+                existing entries. This can be useful when your CSV file only
+                adds new rows and doesn't modify existing ones. The Notion API
+                forces us to go very slowly when updating tables, so this option
+                can greatly speed up your scripts.`,
+              },
               database_id: {
                 type: "string",
                 demandOption: "Without a database ID the CLI doesn't know what to sync with.",
